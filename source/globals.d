@@ -2,7 +2,6 @@ module source.globals;
 
 import parin;
 
-enum setViewportWidth = 360;
 
 Camera mapCamera;
 Camera setCamera;
@@ -12,7 +11,9 @@ float mapCameraZoomSpeed = 10.0f;
 float setCameraZoomSpeed = 10.0f;
 
 Viewport setViewport;
-Vec2 setViewportPosition;
+int setViewportWidth = 360;
+float setViewportHandleWidth = 10.0f;
+bool isSetViewportHandleActive;
 
 TextureId atlas;
 TileMap[4] maps;
