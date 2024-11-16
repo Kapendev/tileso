@@ -5,12 +5,14 @@ import source.globals;
 
 void ready() {
     atlas = loadTexture("atlas.png");
-    setViewport = Viewport(black);
-    setViewport.resize(setViewportWidth, resolutionHeight);
     foreach (ref map; maps) {
         map = TileMap(16, 16);
     }
-    mapCamera.isCentered = true;
+    tileSetViewport.color = black;
+    tileSetViewport.resize(256, resolutionHeight);
+    tileMapCamera.isCentered = true;
+    tileSetCamera.isCentered = false; // TODO: Must work on zoom.
+    tileSetCamera.position = tileSetCamera.targetPosition;
 }
 
 bool update(float dt) {
@@ -20,38 +22,19 @@ bool update(float dt) {
     }
 
     // Some basic info.
-    auto setSplitterHandle = Rect(setViewport.width, 0, setViewportHandleWidth, setViewport.height);
     auto setRowCount = atlas.width / maps[activeMap].tileWidth;
     auto setColCount = atlas.height / maps[activeMap].tileHeight;
-    auto mousePosition = mouseScreenPosition;
-    auto mapMousePosition = mouseWorldPosition(mapCamera);
+    auto mapMousePosition = mouseWorldPosition(tileMapCamera);
     auto mapMouseTileGridPosition = floor(mapMousePosition / maps[activeMap].tileSize);
     auto mapMouseTilePosition = maps[activeMap].tileSize * mapMouseTileGridPosition;
-    auto setMousePosition = mouseWorldPosition(setCamera);
+    auto setMousePosition = mouseWorldPosition(tileSetCamera);
     auto setMouseTileGridPosition = floor(setMousePosition / maps[activeMap].tileSize);
     auto setMouseTilePosition = maps[activeMap].tileSize * setMouseTileGridPosition;
-    auto isInMapViewport = mousePosition.x > setViewport.width + setViewportHandleWidth;
-    auto isInSetViewport = mousePosition.x < setViewport.width;
+    auto isInMapViewport = mouseScreenPosition.x > tileSetViewport.width + tileSetViewport.handleWidth;
+    auto isIntileSetViewport = mouseScreenPosition.x < tileSetViewport.width;
 
     // Resize the set viewport if needed.
-    if (isWindowResized) {
-        setViewport.resize(setViewportWidth, resolutionHeight);
-    }
-
-    if (Mouse.left.isPressed && setSplitterHandle.hasPoint(mousePosition)) {
-        isSetViewportHandleActive = true;
-    }
-    if (isSetViewportHandleActive) {
-        if (Mouse.left.isReleased) {
-            isSetViewportHandleActive = false;
-        }
-        auto delta = deltaMouse;
-        if (delta.x != 0) {
-            setViewportWidth += cast(int) delta.x;
-            setViewport.resize(setViewportWidth, resolutionHeight);
-            setSplitterHandle = Rect(setViewport.width, 0, setViewportHandleWidth, setViewport.height);
-        }
-    }
+    tileSetViewport.update(dt);
 
     // Some basic keys.
     if (Keyboard.esc.isPressed) return true;
@@ -64,11 +47,10 @@ bool update(float dt) {
     if ('c'.isPressed) activeTileRowOffset = wrap(activeTileRowOffset + 1, 0, 3);
     auto targetTile = activeTile + activeTileColOffset + (activeTileRowOffset * setColCount);
 
-    if (!isSetViewportHandleActive) {
-        if (isInSetViewport) {
+    if (!tileSetViewport.isHandleActive) {
+        if (isIntileSetViewport) {
             // Move the camera.
-            setCamera.position += wasd * Vec2(mapCameraSpeed * dt);
-            setCamera.scale += deltaWheel * setCameraZoomSpeed * dt;
+            tileSetCamera.update(dt);
             // Select a tile from the set.
             auto hasPoint =
                 setMouseTileGridPosition.x >= 0 &&
@@ -82,8 +64,7 @@ bool update(float dt) {
             }
         } else if (isInMapViewport) {
             // Move the camera.
-            mapCamera.position += wasd * Vec2(mapCameraSpeed * dt);
-            mapCamera.scale += deltaWheel * mapCameraZoomSpeed * dt;
+            tileMapCamera.update(dt);
             // Add or remove a tile from the map.
             auto hasPoint = maps[activeMap].has(mapMouseTileGridPosition.toIVec());
             if (Mouse.left.isDown && hasPoint) {
@@ -95,31 +76,29 @@ bool update(float dt) {
         }
     }
 
-    setViewport.attach();
-    setCamera.attach();
+    tileSetViewport.attach();
+    tileSetCamera.attach();
     drawTexture(atlas, Vec2());
     drawRect(
         Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize),
         yellow.alpha(120),
     );
-    setCamera.detach();
-    setViewport.detach();
+    tileSetCamera.detach();
+    tileSetViewport.detach();
 
-    mapCamera.attach();
-    drawRect(Rect(maps[activeMap].size), black.alpha(60));
+    tileMapCamera.attach();
+    drawRect(Rect(maps[activeMap].size), black.alpha(30));
     foreach (map; maps) {
-        drawTileMap(atlas, map, mapCamera);
+        drawTileMap(atlas, map, tileMapCamera);
     }
-    if (!isSetViewportHandleActive && isInMapViewport && maps[activeMap].has(mapMouseTileGridPosition.toIVec())) {
+    if (!tileSetViewport.isHandleActive && isInMapViewport && maps[activeMap].has(mapMouseTileGridPosition.toIVec())) {
         drawTile(
             atlas,
             Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, targetTile, mapMouseTilePosition),
         );
     }
-    mapCamera.detach();
-
-    drawRect(setSplitterHandle, isSetViewportHandleActive ? white.alpha(120) : black.alpha(120));
-    drawViewport(setViewport, Vec2());
+    tileMapCamera.detach();
+    tileSetViewport.draw();
     return false;
 }
 
