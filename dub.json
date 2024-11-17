@@ -6,7 +6,7 @@
     "license" : "proprietary",
     "dependencies": {
         "joka": "*",
-        "parin": "~main",
+        "parin": "~main"
     },
     "configurations": [
         {
