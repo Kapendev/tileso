@@ -49,6 +49,14 @@ bool update(float dt) {
     if ('c'.isPressed) activeTileRowOffset = wrap(activeTileRowOffset + 1, 0, 3);
     auto targetTile = activeTile + activeTileColOffset + (activeTileRowOffset * setColCount);
 
+    // TODO: There should be a better way to do this that does not depend on order of functions.
+    // NOTE: Moved attach code here because the result of the toRl function of the camera changes based on that :(
+    // NOTE: Look at mouseWorldPosition and think think think.
+    tileSetViewport.attach();
+    tileSetCamera.attach();
+    setMousePosition = mouseWorldPosition(tileSetCamera);
+    setMouseTileGridPosition = floor(setMousePosition / maps[activeMap].tileSize);
+    setMouseTilePosition = maps[activeMap].tileSize * setMouseTileGridPosition;
     if (!tileSetViewport.isHandleActive) {
         if (isIntileSetViewport) {
             // Move the camera.
@@ -78,8 +86,7 @@ bool update(float dt) {
         }
     }
 
-    tileSetViewport.attach();
-    tileSetCamera.myAttach(tileSetViewport);
+
     drawTexture(atlas, Vec2());
     drawRect(
         Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize),
@@ -88,7 +95,7 @@ bool update(float dt) {
     tileSetCamera.detach();
     tileSetViewport.detach();
 
-    tileMapCamera.myAttach();
+    tileMapCamera.attach();
     drawRect(Rect(maps[activeMap].size), black.alpha(30));
     foreach (map; maps) {
         drawTileMap(atlas, map, tileMapCamera);

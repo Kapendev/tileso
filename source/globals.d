@@ -28,29 +28,6 @@ struct AppCamera {
         followPositionWithSlowdown(targetPosition, slowdown);
         followScaleWithSlowdown(targetScale, slowdown);
     }
-
-    // TODO: Put something like that inside of parin.
-    // NOTE: No idea how the API should look.
-    void myAttach(Viewport viewport = Viewport()) {
-        import rl = parin.rl;
-    
-        if (isAttached) return;
-        isAttached = true;
-        auto temp = this.toRl();
-        // The hack.
-        if (viewport.isEmpty) {
-            temp.offset = (Vec2(tileSetViewport.width, 0) + Rect(resolutionWidth - tileSetViewport.width, resolutionHeight).origin(hook)).toRl();
-        } else {
-            temp.offset = Rect(viewport.width, viewport.height).origin(hook).toRl();
-        }
-        if (isPixelSnapped || isPixelPerfect) {
-            temp.target.x = floor(temp.target.x);
-            temp.target.y = floor(temp.target.y);
-            temp.offset.x = floor(temp.offset.x);
-            temp.offset.y = floor(temp.offset.y);
-        }
-        rl.BeginMode2D(temp);
-    }
 }
 
 struct TileSetViewport {

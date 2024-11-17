@@ -8,3 +8,6 @@ To compile the app, run:
 dub run parin:setup -- y
 dub run
 ```
+
+> [!NOTE]
+> You will need to clone and depend on parin main.
