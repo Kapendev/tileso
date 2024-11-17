@@ -2,6 +2,6 @@
 	"fileVersion": 1,
 	"versions": {
 		"joka": "0.0.12",
-		"parin": {"path":"../parin"}
+		"parin": "~main"
 	}
 }
