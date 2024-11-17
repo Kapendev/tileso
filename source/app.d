@@ -3,6 +3,8 @@ module source.app;
 import parin;
 import source.globals;
 
+// TODO: Fix mouse position :)
+
 void ready() {
     atlas = loadTexture("atlas.png");
     foreach (ref map; maps) {
@@ -11,7 +13,7 @@ void ready() {
     tileSetViewport.color = black;
     tileSetViewport.resize(256, resolutionHeight);
     tileMapCamera.isCentered = true;
-    tileSetCamera.isCentered = false; // TODO: Must work on zoom.
+    tileSetCamera.isCentered = true;
     tileSetCamera.position = tileSetCamera.targetPosition;
 }
 
@@ -77,7 +79,7 @@ bool update(float dt) {
     }
 
     tileSetViewport.attach();
-    tileSetCamera.attach();
+    tileSetCamera.myAttach(tileSetViewport);
     drawTexture(atlas, Vec2());
     drawRect(
         Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize),
@@ -86,7 +88,7 @@ bool update(float dt) {
     tileSetCamera.detach();
     tileSetViewport.detach();
 
-    tileMapCamera.attach();
+    tileMapCamera.myAttach();
     drawRect(Rect(maps[activeMap].size), black.alpha(30));
     foreach (map; maps) {
         drawTileMap(atlas, map, tileMapCamera);

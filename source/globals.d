@@ -16,7 +16,7 @@ Sz activeTileColOffset;
 struct AppCamera {
     Camera data;
     Vec2 targetPosition;
-    float slowdown = 0.1f;
+    float slowdown = 0.08f;
     float targetScale = 1.0f;
     int moveSpeed = 400;
     int zoomSpeed = 15;
@@ -28,11 +28,35 @@ struct AppCamera {
         followPositionWithSlowdown(targetPosition, slowdown);
         followScaleWithSlowdown(targetScale, slowdown);
     }
+
+    // TODO: Put something like that inside of parin.
+    // NOTE: No idea how the API should look.
+    void myAttach(Viewport viewport = Viewport()) {
+        import rl = parin.rl;
+    
+        if (isAttached) return;
+        isAttached = true;
+        auto temp = this.toRl();
+        // The hack.
+        if (viewport.isEmpty) {
+            temp.offset = (Vec2(tileSetViewport.width, 0) + Rect(resolutionWidth - tileSetViewport.width, resolutionHeight).origin(hook)).toRl();
+        } else {
+            temp.offset = Rect(viewport.width, viewport.height).origin(hook).toRl();
+        }
+        if (isPixelSnapped || isPixelPerfect) {
+            temp.target.x = floor(temp.target.x);
+            temp.target.y = floor(temp.target.y);
+            temp.offset.x = floor(temp.offset.x);
+            temp.offset.y = floor(temp.offset.y);
+        }
+        rl.BeginMode2D(temp);
+    }
 }
 
 struct TileSetViewport {
     Viewport data;
-    int handleWidth = 12;
+    int handleWidth = 16;
+    float handleMouseOffset = 0.0f;
     bool isHandleActive;
     alias data this;
 
@@ -48,12 +72,13 @@ struct TileSetViewport {
         if (isWindowResized) resize(width, resolutionHeight);
         if (Mouse.left.isPressed && hackHandle.hasPoint(mouseScreenPosition)) {
             isHandleActive = true;
+            handleMouseOffset = tileSetViewport.width - mouseScreenPosition.x;
         }
         if (isHandleActive) {
             if (Mouse.left.isReleased) {
                 isHandleActive = false;
             } else if (deltaMouse.x != 0) {
-                auto target = clamp(cast(int) mouseScreenPosition.x, 0, resolutionWidth - handleWidth);
+                auto target = clamp(cast(int) (mouseScreenPosition.x + handleMouseOffset), 0, resolutionWidth - handleWidth);
                 tileSetViewport.resize(target, resolutionHeight);
             }
         }
