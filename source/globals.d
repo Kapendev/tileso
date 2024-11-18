@@ -47,15 +47,15 @@ struct TileSetViewport {
         hackHandle.position.x -= 1;
         hackHandle.size.x += 1;
         if (isWindowResized) resize(width, resolutionHeight);
-        if (Mouse.left.isPressed && hackHandle.hasPoint(mouseScreenPosition)) {
+        if (Mouse.left.isPressed && hackHandle.hasPoint(mouse)) {
             isHandleActive = true;
-            handleMouseOffset = tileSetViewport.width - mouseScreenPosition.x;
+            handleMouseOffset = tileSetViewport.width - mouse.x;
         }
         if (isHandleActive) {
             if (Mouse.left.isReleased) {
                 isHandleActive = false;
             } else if (deltaMouse.x != 0) {
-                auto target = clamp(cast(int) (mouseScreenPosition.x + handleMouseOffset), 0, resolutionWidth - handleWidth);
+                auto target = clamp(cast(int) (mouse.x + handleMouseOffset), 0, resolutionWidth - handleWidth);
                 tileSetViewport.resize(target, resolutionHeight);
             }
         }

@@ -3,7 +3,8 @@ module source.app;
 import parin;
 import source.globals;
 
-// TODO: Fix mouse position :)
+// TODO: Fix tile pick bug at borders.
+// TODO: Make one more viewport for the map.
 
 void ready() {
     atlas = loadTexture("atlas.png");
@@ -14,6 +15,7 @@ void ready() {
     tileSetViewport.resize(256, resolutionHeight);
     tileMapCamera.isCentered = true;
     tileSetCamera.isCentered = true;
+    tileSetCamera.targetPosition = atlas.size * Vec2(0.5f);
     tileSetCamera.position = tileSetCamera.targetPosition;
 }
 
@@ -26,14 +28,14 @@ bool update(float dt) {
     // Some basic info.
     auto setRowCount = atlas.width / maps[activeMap].tileWidth;
     auto setColCount = atlas.height / maps[activeMap].tileHeight;
-    auto mapMousePosition = mouseWorldPosition(tileMapCamera);
+    auto mapMousePosition = mouse.toWorldPoint(tileMapCamera);
     auto mapMouseTileGridPosition = floor(mapMousePosition / maps[activeMap].tileSize);
     auto mapMouseTilePosition = maps[activeMap].tileSize * mapMouseTileGridPosition;
-    auto setMousePosition = mouseWorldPosition(tileSetCamera);
+    auto setMousePosition = mouse.toWorldPoint(tileSetCamera, tileSetViewport);
     auto setMouseTileGridPosition = floor(setMousePosition / maps[activeMap].tileSize);
     auto setMouseTilePosition = maps[activeMap].tileSize * setMouseTileGridPosition;
-    auto isInMapViewport = mouseScreenPosition.x > tileSetViewport.width + tileSetViewport.handleWidth;
-    auto isIntileSetViewport = mouseScreenPosition.x < tileSetViewport.width;
+    auto isInMapViewport = mouse.x > tileSetViewport.width + tileSetViewport.handleWidth;
+    auto isIntileSetViewport = mouse.x < tileSetViewport.width;
 
     // Resize the set viewport if needed.
     tileSetViewport.update(dt);
@@ -49,14 +51,6 @@ bool update(float dt) {
     if ('c'.isPressed) activeTileRowOffset = wrap(activeTileRowOffset + 1, 0, 3);
     auto targetTile = activeTile + activeTileColOffset + (activeTileRowOffset * setColCount);
 
-    // TODO: There should be a better way to do this that does not depend on order of functions.
-    // NOTE: Moved attach code here because the result of the toRl function of the camera changes based on that :(
-    // NOTE: Look at mouseWorldPosition and think think think.
-    tileSetViewport.attach();
-    tileSetCamera.attach();
-    setMousePosition = mouseWorldPosition(tileSetCamera);
-    setMouseTileGridPosition = floor(setMousePosition / maps[activeMap].tileSize);
-    setMouseTilePosition = maps[activeMap].tileSize * setMouseTileGridPosition;
     if (!tileSetViewport.isHandleActive) {
         if (isIntileSetViewport) {
             // Move the camera.
@@ -87,6 +81,8 @@ bool update(float dt) {
     }
 
 
+    tileSetViewport.attach();
+    tileSetCamera.attach();
     drawTexture(atlas, Vec2());
     drawRect(
         Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize),
