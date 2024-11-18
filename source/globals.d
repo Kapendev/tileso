@@ -5,6 +5,7 @@ import parin;
 AppCamera tileMapCamera;
 AppCamera tileSetCamera;
 TileSetViewport tileSetViewport;
+Viewport tileMapViewport;
 
 TextureId atlas;
 TileMap[4] maps;
@@ -22,9 +23,11 @@ struct AppCamera {
     int zoomSpeed = 15;
     alias data this;
 
-    void update(float dt) {
-        targetPosition = targetPosition + wasd * Vec2(moveSpeed * dt);
-        targetScale = max(targetScale + deltaWheel * zoomSpeed * dt, 0.1f);
+    void update(float dt, bool canMove) {
+        if (canMove) {
+            targetPosition = targetPosition + wasd * Vec2(moveSpeed * dt);
+            targetScale = max(targetScale + deltaWheel * zoomSpeed * dt, 0.1f);
+        }
         followPositionWithSlowdown(targetPosition, slowdown);
         followScaleWithSlowdown(targetScale, slowdown);
     }
@@ -46,7 +49,10 @@ struct TileSetViewport {
         auto hackHandle = handle;
         hackHandle.position.x -= 1;
         hackHandle.size.x += 1;
-        if (isWindowResized) resize(width, resolutionHeight);
+        if (isWindowResized) {
+            resize(width, resolutionHeight);
+            tileMapViewport.resize(resolutionWidth - width - handleWidth, resolutionHeight);
+        }
         if (Mouse.left.isPressed && hackHandle.hasPoint(mouse)) {
             isHandleActive = true;
             handleMouseOffset = tileSetViewport.width - mouse.x;
@@ -57,6 +63,8 @@ struct TileSetViewport {
             } else if (deltaMouse.x != 0) {
                 auto target = clamp(cast(int) (mouse.x + handleMouseOffset), 0, resolutionWidth - handleWidth);
                 tileSetViewport.resize(target, resolutionHeight);
+                // TODO: Hack. Remove later.
+                tileMapViewport.resize(resolutionWidth - target - handleWidth, resolutionHeight);
             }
         }
     }

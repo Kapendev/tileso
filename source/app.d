@@ -4,7 +4,7 @@ import parin;
 import source.globals;
 
 // TODO: Fix tile pick bug at borders.
-// TODO: Make one more viewport for the map.
+// TODO: Just clean things. I was testing stuff.
 
 void ready() {
     atlas = loadTexture("atlas.png");
@@ -13,6 +13,7 @@ void ready() {
     }
     tileSetViewport.color = black;
     tileSetViewport.resize(256, resolutionHeight);
+    tileMapViewport.resize(resolutionWidth - 256 - tileSetViewport.handleWidth, resolutionHeight);
     tileMapCamera.isCentered = true;
     tileSetCamera.isCentered = true;
     tileSetCamera.targetPosition = atlas.size * Vec2(0.5f);
@@ -28,14 +29,14 @@ bool update(float dt) {
     // Some basic info.
     auto setRowCount = atlas.width / maps[activeMap].tileWidth;
     auto setColCount = atlas.height / maps[activeMap].tileHeight;
-    auto mapMousePosition = mouse.toWorldPoint(tileMapCamera);
+    auto mapMousePosition = mouse.toWorldPoint(tileMapCamera, tileMapViewport) - Vec2((tileSetViewport.width + tileSetViewport.handleWidth) / tileMapCamera.scale, 0);
     auto mapMouseTileGridPosition = floor(mapMousePosition / maps[activeMap].tileSize);
     auto mapMouseTilePosition = maps[activeMap].tileSize * mapMouseTileGridPosition;
     auto setMousePosition = mouse.toWorldPoint(tileSetCamera, tileSetViewport);
     auto setMouseTileGridPosition = floor(setMousePosition / maps[activeMap].tileSize);
     auto setMouseTilePosition = maps[activeMap].tileSize * setMouseTileGridPosition;
     auto isInMapViewport = mouse.x > tileSetViewport.width + tileSetViewport.handleWidth;
-    auto isIntileSetViewport = mouse.x < tileSetViewport.width;
+    auto isInTileSetViewport = mouse.x < tileSetViewport.width;
 
     // Resize the set viewport if needed.
     tileSetViewport.update(dt);
@@ -51,10 +52,10 @@ bool update(float dt) {
     if ('c'.isPressed) activeTileRowOffset = wrap(activeTileRowOffset + 1, 0, 3);
     auto targetTile = activeTile + activeTileColOffset + (activeTileRowOffset * setColCount);
 
+    tileSetCamera.update(dt, isInTileSetViewport);
+    tileMapCamera.update(dt, isInMapViewport);
     if (!tileSetViewport.isHandleActive) {
-        if (isIntileSetViewport) {
-            // Move the camera.
-            tileSetCamera.update(dt);
+        if (isInTileSetViewport) {
             // Select a tile from the set.
             auto hasPoint =
                 setMouseTileGridPosition.x >= 0 &&
@@ -68,7 +69,6 @@ bool update(float dt) {
             }
         } else if (isInMapViewport) {
             // Move the camera.
-            tileMapCamera.update(dt);
             // Add or remove a tile from the map.
             auto hasPoint = maps[activeMap].has(mapMouseTileGridPosition.toIVec());
             if (Mouse.left.isDown && hasPoint) {
@@ -91,6 +91,7 @@ bool update(float dt) {
     tileSetCamera.detach();
     tileSetViewport.detach();
 
+    tileMapViewport.attach();
     tileMapCamera.attach();
     drawRect(Rect(maps[activeMap].size), black.alpha(30));
     foreach (map; maps) {
@@ -100,10 +101,24 @@ bool update(float dt) {
         drawTile(
             atlas,
             Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, targetTile, mapMouseTilePosition),
+            DrawOptions(gray3),
         );
     }
     tileMapCamera.detach();
+    tileMapViewport.detach();
+
     tileSetViewport.draw();
+    drawViewport(tileMapViewport, Vec2(tileSetViewport.width + tileSetViewport.handleWidth, 0));
+    drawRect(Rect(mouse + Vec2(50 - 2, 25 - 2), Vec2(16 * 3 + 2 * 2 + 4)), gray3);
+    foreach (y; 0 .. 3) {
+        foreach (x; 0 .. 3) {
+            auto rect = Rect(x * 18, y * 18, 16, 16);
+            // rect.position += tileSetViewport.handle.position + Vec2(24, 8);
+            rect.position += mouse + Vec2(50, 25);
+            auto color = ((activeTileRowOffset % 3) == y && (activeTileColOffset % 3) == x) ? gray4 : black.alpha(200);
+            drawRect(rect, color);
+        }
+    }
     return false;
 }
 
