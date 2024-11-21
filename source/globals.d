@@ -1,16 +1,17 @@
 module source.globals;
 
 import parin;
-
-enum slowdown = 0.08f;
+import source.config;
 
 Canvas canvas;
 TextureId atlas;
 TileMap[4] maps;
-Sz activeMap;
-Sz activeTile;
-Sz activeTileRowOffset;
-Sz activeTileColOffset;
+short activeMap;
+short activeTile;
+short activeTileRowOffset;
+short activeTileColOffset;
+short activeTileWidth = 1;
+short activeTileHeight = 1;
 
 struct ViewportMouse {
     Vec2 world;
@@ -25,8 +26,8 @@ struct ViewportCamera {
     Camera data;
     Vec2 targetPosition;
     float targetScale = 1.0f;
-    int moveSpeed = 400;
-    int zoomSpeed = 12;
+    int moveSpeed = defaultMoveSpeed;
+    int zoomSpeed = defaultZoomSpeed;
 
     alias data this;
 
@@ -72,7 +73,7 @@ struct ViewportObject {
 struct Canvas {
     ViewportObject a;
     ViewportObject b;
-    int handleWidth = 16;
+    int handleWidth = defaultHandleWidth;
     float handleOffset = 0.0f;
     bool isHandleActive;
 
@@ -109,7 +110,7 @@ struct Canvas {
     }
 
     void update(float dt) {
-        // Move the cameras.
+        // Update the cameras.
         a.camera.update(dt, isInA);
         b.camera.update(dt, isInB);
         // Resize the viewports when the window is resized.
@@ -117,7 +118,10 @@ struct Canvas {
             resizeA(a.width);
         }
         // Check if the handle is pressed and move it. This will also resize the viewports.
-        if (Mouse.left.isPressed && handle.hasPoint(mouse)) {
+        auto collisionHandle = handle;
+        collisionHandle.position.x -= 1;
+        collisionHandle.size.x += 1;
+        if (Mouse.left.isPressed && collisionHandle.hasPoint(mouse)) {
             isHandleActive = true;
             handleOffset = handle.position.x - mouse.x;
         }

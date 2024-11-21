@@ -4,6 +4,7 @@ import parin;
 import source.globals;
 
 // TODO: Just clean things. I was testing stuff.
+// TODO: Add checks for width and height of the current active tile. Can go outside of map. 
 
 void ready() {
     atlas = loadTexture("atlas.png");
@@ -22,37 +23,60 @@ bool update(float dt) {
     // Some basic keys.
     if (Keyboard.esc.isPressed) return true;
     if (Keyboard.f11.isPressed) toggleIsFullscreen();
+    if (Keyboard.n0.isPressed) maps[activeMap].fill(-1);
 
     // Some basic stuff.
     canvas.update(dt);
     auto setRowCount = atlas.width / maps[activeMap].tileWidth;
     auto setColCount = atlas.height / maps[activeMap].tileHeight;
     // Get the current target tile id.
-    foreach (i, digit; digitChars[1 .. $]) {
-        if (digit.isPressed) activeTileColOffset = i;
+    if (activeTileWidth == 1 && activeTileHeight == 1) {
+        foreach (i, digit; digitChars[1 .. $]) {
+            if (digit.isPressed) activeTileColOffset = cast(short) i;
+        }
+        if ('c'.isPressed) activeTileRowOffset = cast(short) wrap(activeTileRowOffset + 1, 0, 3);
     }
-    if ('c'.isPressed) activeTileRowOffset = wrap(activeTileRowOffset + 1, 0, 3);
-    auto targetTile = activeTile + activeTileColOffset + (activeTileRowOffset * setColCount);
+    auto targetTile = cast(short) (activeTile + activeTileColOffset + (activeTileRowOffset * setColCount));
 
     if (!canvas.isHandleActive) {
         if (canvas.isInA) {
+            static isDragging = false; // TODO: Remove later.
             // Select a tile from the set.
             auto gridPoint = canvas.a.mouse.grid;
             auto hasPoint = gridPoint.x >= 0 && gridPoint.x < setColCount && gridPoint.y >= 0 && gridPoint.y < setRowCount;
-            if (Mouse.left.isDown && hasPoint) {
-                activeTile = cast(short) (setColCount * gridPoint.y + gridPoint.x);
-                activeTileRowOffset = 0;
-                activeTileColOffset = 0;
+            if (isDragging) {
+                if (Mouse.left.isDown && hasPoint) {
+                    activeTileWidth = cast(short) (gridPoint.x - (activeTile % setColCount) + 1);
+                    activeTileHeight = cast(short) (gridPoint.y - (activeTile / setColCount) + 1);
+                }
+                if (Mouse.left.isReleased) {
+                    isDragging = false;
+                }
+            } else {
+                if (Mouse.left.isDown && hasPoint) {
+                    isDragging = true;
+                    activeTile = cast(short) (setColCount * gridPoint.y + gridPoint.x);
+                    activeTileRowOffset = 0;
+                    activeTileColOffset = 0;
+                    activeTileWidth = 1;
+                    activeTileHeight = 1;
+                }
             }
         } else {
             // Add or remove a tile from the map.
             auto gridPoint = canvas.b.mouse.grid;
             auto hasPoint = maps[activeMap].has(gridPoint);
             if (Mouse.left.isDown && hasPoint) {
-                maps[activeMap][gridPoint] = cast(short) targetTile;
+                foreach (y; 0 .. activeTileHeight) {
+                    foreach (x; 0 .. activeTileWidth) {
+                        maps[activeMap][gridPoint + IVec2(x, y)] = cast(short) (targetTile + x + y * setColCount);
+                    }
+                }
             }
             if (Mouse.right.isDown && hasPoint) {
                 maps[activeMap][gridPoint] = -1;
+                activeTileWidth = 1;
+                activeTileHeight = 1;
             }
         }
     }
@@ -61,7 +85,7 @@ bool update(float dt) {
     canvas.a.attach();
     drawTexture(atlas, Vec2());
     drawRect(
-        Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize),
+        Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize * Vec2(activeTileWidth, activeTileHeight)),
         yellow.alpha(120),
     );
     canvas.a.detach();
@@ -73,11 +97,14 @@ bool update(float dt) {
         drawTileMap(atlas, map, canvas.b.camera);
     }
     if (!canvas.isHandleActive && canvas.isInB && maps[activeMap].has(canvas.b.mouse.grid)) {
-        drawTile(
-            atlas,
-            Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, targetTile, canvas.b.mouse.worldGrid),
-            DrawOptions(gray3),
-        );
+        auto tile = Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, 0);
+        foreach (y; 0 .. activeTileHeight) {
+            foreach (x; 0 .. activeTileWidth) {
+                tile.id = targetTile + x + y * setColCount;
+                tile.position = canvas.b.mouse.worldGrid + Vec2(x, y) * maps[activeMap].tileSize;
+                drawTile(atlas, tile, DrawOptions(gray3));
+            }
+        }
     }
     canvas.b.detach();
 
