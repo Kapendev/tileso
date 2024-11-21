@@ -63,15 +63,21 @@ bool update(float dt) {
                 }
             }
         } else {
+            static lastPlaceGridPoint = IVec2(); // TODO: Remove later.
             // Add or remove a tile from the map.
             auto gridPoint = canvas.b.mouse.grid;
             auto hasPoint = maps[activeMap].has(gridPoint);
-            if (Mouse.left.isDown && hasPoint) {
+            auto canPlace = lastPlaceGridPoint == IVec2() || abs(gridPoint.x - lastPlaceGridPoint.x) >= activeTileWidth || abs(gridPoint.y - lastPlaceGridPoint.y) >= activeTileHeight; // TODO: Remove later.
+            if (Mouse.left.isDown && hasPoint && canPlace) {
+                lastPlaceGridPoint = gridPoint;
                 foreach (y; 0 .. activeTileHeight) {
                     foreach (x; 0 .. activeTileWidth) {
                         maps[activeMap][gridPoint + IVec2(x, y)] = cast(short) (targetTile + x + y * setColCount);
                     }
                 }
+            }
+            if (Mouse.left.isReleased) {
+                lastPlaceGridPoint = IVec2();
             }
             if (Mouse.right.isDown && hasPoint) {
                 maps[activeMap][gridPoint] = -1;
