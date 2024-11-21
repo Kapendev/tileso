@@ -2,11 +2,9 @@ module source.globals;
 
 import parin;
 
-AppCamera tileMapCamera;
-AppCamera tileSetCamera;
-TileSetViewport tileSetViewport;
-Viewport tileMapViewport;
+enum slowdown = 0.08f;
 
+Canvas canvas;
 TextureId atlas;
 TileMap[4] maps;
 Sz activeMap;
@@ -14,18 +12,27 @@ Sz activeTile;
 Sz activeTileRowOffset;
 Sz activeTileColOffset;
 
-struct AppCamera {
+struct ViewportMouse {
+    Vec2 world;
+    IVec2 grid;
+
+    Vec2 worldGrid() {
+        return grid.toVec() * maps[activeMap].tileSize;
+    }
+}
+
+struct ViewportCamera {
     Camera data;
     Vec2 targetPosition;
-    float slowdown = 0.08f;
     float targetScale = 1.0f;
     int moveSpeed = 400;
-    int zoomSpeed = 15;
+    int zoomSpeed = 12;
+
     alias data this;
 
     void update(float dt, bool canMove) {
         if (canMove) {
-            targetPosition = targetPosition + wasd * Vec2(moveSpeed * dt);
+            targetPosition += wasd.normalize() * Vec2(moveSpeed * dt);
             targetScale = max(targetScale + deltaWheel * zoomSpeed * dt, 0.1f);
         }
         followPositionWithSlowdown(targetPosition, slowdown);
@@ -33,43 +40,99 @@ struct AppCamera {
     }
 }
 
-struct TileSetViewport {
+struct ViewportObject {
     Viewport data;
-    int handleWidth = 16;
-    float handleMouseOffset = 0.0f;
-    bool isHandleActive;
+    ViewportCamera camera;
+    Vec2 position;
+
     alias data this;
 
+    ViewportMouse mouse() {
+        auto result = ViewportMouse();
+        result.world = parin.mouse.toWorldPoint(camera, data) - position / Vec2(camera.scale);
+        result.grid = (result.world / maps[activeMap].tileSize).toIVec();
+        return result;
+    }
+
+    void attach() {
+        data.attach();
+        camera.attach();
+    }
+
+    void detach() {
+        camera.detach();
+        data.detach();
+    }
+
+    void draw() {
+        drawViewport(data, position);
+    }
+}
+
+struct Canvas {
+    ViewportObject a;
+    ViewportObject b;
+    int handleWidth = 16;
+    float handleOffset = 0.0f;
+    bool isHandleActive;
+
     Rect handle() {
-        return Rect(width, 0, handleWidth, height);
+        return Rect(a.width, 0, handleWidth, windowHeight);
+    }
+
+    bool isInA() {
+        return mouse.x < a.width;
+    }
+
+    bool isInB() {
+        return mouse.x >= a.width + handleWidth;
+    }
+
+    void resizeA(int width) {
+        a.resize(width, windowHeight);
+        b.resize(windowWidth - width - handleWidth, windowHeight);
+        b.position.x = a.width + handleWidth;
+    }
+
+    void resizeB(int width) {
+        a.resize(windowHeight - width - handleWidth, windowHeight);
+        b.resize(width, windowHeight);
+        b.position.x = a.width + handleWidth;
+    }
+
+    void ready() {
+        a.color = black;
+        a.camera.isCentered = true;
+        b.color = gray;
+        b.camera.isCentered = true;
+        resizeA(256);
     }
 
     void update(float dt) {
-        // The hack handle is used to make collision checking nicer.
-        auto hackHandle = handle;
-        hackHandle.position.x -= 1;
-        hackHandle.size.x += 1;
+        // Move the cameras.
+        a.camera.update(dt, isInA);
+        b.camera.update(dt, isInB);
+        // Resize the viewports when the window is resized.
         if (isWindowResized) {
-            resize(width, resolutionHeight);
-            tileMapViewport.resize(resolutionWidth - width - handleWidth, resolutionHeight);
+            resizeA(a.width);
         }
-        if (Mouse.left.isPressed && hackHandle.hasPoint(mouse)) {
+        // Check if the handle is pressed and move it. This will also resize the viewports.
+        if (Mouse.left.isPressed && handle.hasPoint(mouse)) {
             isHandleActive = true;
-            handleMouseOffset = tileSetViewport.width - mouse.x;
+            handleOffset = handle.position.x - mouse.x;
         }
         if (isHandleActive) {
             if (Mouse.left.isReleased) {
                 isHandleActive = false;
-            } else if (deltaMouse.x != 0) {
-                auto target = clamp(cast(int) (mouse.x + handleMouseOffset), 0, resolutionWidth - handleWidth);
-                tileSetViewport.resize(target, resolutionHeight);
-                // TODO: Hack. Remove later.
-                tileMapViewport.resize(resolutionWidth - target - handleWidth, resolutionHeight);
+            } else if (deltaMouse.x != 0.0f) {
+                resizeA(clamp(cast(int) (mouse.x + handleOffset), 0, windowWidth - handleWidth));
             }
         }
     }
 
     void draw() {
+        a.draw();
+        b.draw();
         if (isHandleActive) {
             drawRect(handle, gray4);
             drawRect(handle.subAll(3), black.alpha(200));
@@ -77,6 +140,5 @@ struct TileSetViewport {
             drawRect(handle, gray3);
             drawRect(handle.subAll(3), black.alpha(200));
         }
-        drawViewport(data, Vec2());
     }
 }
