@@ -49,8 +49,19 @@ bool update(float dt) {
                     activeTileWidth = cast(short) (gridPoint.x - (activeTile % setColCount) + 1);
                     activeTileHeight = cast(short) (gridPoint.y - (activeTile / setColCount) + 1);
                 }
+                // TODO: Clean this maybe.
                 if (Mouse.left.isReleased) {
                     isDragging = false;
+                    if (activeTileWidth <= 0) {
+                        activeTileWidth *= -1;
+                        activeTileWidth += 2;
+                        activeTile -= activeTileWidth - 1;
+                    }
+                    if (activeTileHeight <= 0) {
+                        activeTileHeight *= -1;
+                        activeTileHeight += 2;
+                        activeTile -= (activeTileHeight - 1) * setColCount;
+                    }
                 }
             } else {
                 if (Mouse.left.isDown && hasPoint) {
@@ -90,10 +101,27 @@ bool update(float dt) {
     // Draw stuff in a.
     canvas.a.attach();
     drawTexture(atlas, Vec2());
-    drawRect(
-        Rect(maps[activeMap].tileWidth * (targetTile % setColCount), maps[activeMap].tileHeight * (targetTile / setRowCount), maps[activeMap].tileSize * Vec2(activeTileWidth, activeTileHeight)),
-        yellow.alpha(120),
-    );
+    {
+        // Small hack maybe for drawing big areas right?
+        // TODO: Clean this maybe.
+        auto tempWidth = activeTileWidth;
+        auto tempHeight = activeTileHeight;
+        auto tempTile = activeTile;
+        if (tempWidth <= 0) {
+            tempWidth *= -1;
+            tempWidth += 2;
+            tempTile -= tempWidth - 1;
+        }
+        if (tempHeight <= 0) {
+            tempHeight *= -1;
+            tempHeight += 2;
+            tempTile -= (tempHeight - 1) * setColCount;
+        }
+        drawRect(
+            Rect(maps[activeMap].tileWidth * (tempTile % setColCount), maps[activeMap].tileHeight * (tempTile / setRowCount), maps[activeMap].tileSize * Vec2(tempWidth, tempHeight)),
+            yellow.alpha(120),
+        );
+    }
     canvas.a.detach();
 
     // Draw stuff in b.
