@@ -7,11 +7,15 @@ Canvas canvas;
 TextureId atlas;
 TileMap[4] maps;
 short activeMap;
-short activeTile;
-short activeTileRowOffset;
-short activeTileColOffset;
-short activeTileWidth = 1;
-short activeTileHeight = 1;
+
+IVec2 activeTilePoint;
+IVec2 activeTileOffset;
+IVec2 activeTileGroupPoint;
+IVec2 lastPlacedPoint;
+
+short[128 * 128] copyPasteBuffer;
+Sz copyPasteBufferRowCount = 0;
+Sz copyPasteBufferColCount = 0;
 
 struct ViewportMouse {
     Vec2 world;
@@ -51,7 +55,7 @@ struct ViewportObject {
     ViewportMouse mouse() {
         auto result = ViewportMouse();
         result.world = parin.mouse.toWorldPoint(camera, data) - position / Vec2(camera.scale);
-        result.grid = (result.world / maps[activeMap].tileSize).toIVec();
+        result.grid = (result.world / maps[activeMap].tileSize).floor().toIVec();
         return result;
     }
 
@@ -81,11 +85,11 @@ struct Canvas {
         return Rect(a.width, 0, handleWidth, windowHeight);
     }
 
-    bool isInA() {
+    bool isUserInA() {
         return mouse.x < a.width;
     }
 
-    bool isInB() {
+    bool isUserInB() {
         return mouse.x >= a.width + handleWidth;
     }
 
@@ -111,12 +115,10 @@ struct Canvas {
 
     void update(float dt) {
         // Update the cameras.
-        a.camera.update(dt, isInA);
-        b.camera.update(dt, isInB);
+        a.camera.update(dt, isUserInA);
+        b.camera.update(dt, isUserInB);
         // Resize the viewports when the window is resized.
-        if (isWindowResized) {
-            resizeA(a.width);
-        }
+        if (isWindowResized) resizeA(a.width);
         // Check if the handle is pressed and move it. This will also resize the viewports.
         auto collisionHandle = handle;
         collisionHandle.position.x -= 1;
