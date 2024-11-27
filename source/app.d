@@ -4,8 +4,7 @@ import parin;
 import source.globals;
 
 // TODO: Just clean things. I was testing stuff.
-// TODO: Add checks for width and height of the current active tile. Can go outside of map.
-// TODO: Default tile in tile set when no tile is selected should not be 0, but -1.
+// TODO: Add copy-paste with left click.
 
 void ready() {
     atlas = loadTexture("atlas.png");
@@ -30,11 +29,13 @@ bool update(float dt) {
     auto tileSetColCount = atlas.height / maps[activeMap].tileHeight;
     auto activeTileTargetPoint = activeTilePoint;
     if (activeTilePoint == activeTileGroupPoint) {
-        foreach (i, digit; digitChars[1 .. $]) {
-            if (digit.isPressed) activeTileOffset.x = cast(int) i;
+        if (activeTilePoint != IVec2(-1)) {
+            foreach (i, digit; digitChars[1 .. $]) {
+                if (digit.isPressed) activeTileOffset.x = cast(int) i;
+            }
+            if ('c'.isPressed) activeTileOffset.y = wrap(activeTileOffset.y + 1, 0, 3);
+            activeTileTargetPoint = activeTilePoint + activeTileOffset;
         }
-        if ('c'.isPressed) activeTileOffset.y = wrap(activeTileOffset.y + 1, 0, 3);
-        activeTileTargetPoint = activeTilePoint + activeTileOffset;
     } else {
         if (activeTilePoint.x > activeTileGroupPoint.x) activeTileTargetPoint.x = activeTileGroupPoint.x;
         if (activeTilePoint.y > activeTileGroupPoint.y) activeTileTargetPoint.y = activeTileGroupPoint.y;
@@ -59,8 +60,10 @@ bool update(float dt) {
                 }
             } else {
                 if (Mouse.left.isPressed) {
-                    activeTilePoint = IVec2();
-                    activeTileGroupPoint = IVec2();
+                    activeTileTargetPoint = IVec2(-1);
+                    activeTilePoint = IVec2(-1);
+                    activeTileGroupPoint = IVec2(-1);
+                    activeTileOffset = IVec2();
                 }
             }
         } else if (canvas.isUserInB) {
@@ -70,21 +73,27 @@ bool update(float dt) {
             auto activeTileSize = abs(activeTileGroupPoint - activeTilePoint);
             auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
             if (hasPoint) {
-                if (Mouse.left.isPressed) {
-                    lastPlacedPoint = point;
-                    foreach (y; 0 .. activeTileSize.y + 1) {
-                        foreach (x; 0 .. activeTileSize.x + 1) {
-                            maps[activeMap][point + IVec2(x, y)] = cast(short) (activeTileTargetId + x + y * tileSetColCount);
-                        }
-                    }
-                } else if (Mouse.left.isDown) {
-                    auto size = abs(lastPlacedPoint - point);
-                    auto canPlace = size.x > activeTileSize.x || size.y > activeTileSize.y;
-                    if (canPlace) {
+                if (activeTileTargetPoint != IVec2(-1)) {
+                    if (Mouse.left.isPressed) {
                         lastPlacedPoint = point;
                         foreach (y; 0 .. activeTileSize.y + 1) {
                             foreach (x; 0 .. activeTileSize.x + 1) {
-                                maps[activeMap][point + IVec2(x, y)] = cast(short) (activeTileTargetId + x + y * tileSetColCount);
+                                auto index = point + IVec2(x, y);
+                                if (!maps[activeMap].has(index)) continue;
+                                maps[activeMap][index] = cast(short) (activeTileTargetId + x + y * tileSetColCount);
+                            }
+                        }
+                    } else if (Mouse.left.isDown) {
+                        auto size = abs(lastPlacedPoint - point);
+                        auto canPlace = size.x > activeTileSize.x || size.y > activeTileSize.y;
+                        if (canPlace) {
+                            lastPlacedPoint = point;
+                            foreach (y; 0 .. activeTileSize.y + 1) {
+                                foreach (x; 0 .. activeTileSize.x + 1) {
+                                    auto index = point + IVec2(x, y);
+                                    if (!maps[activeMap].has(index)) continue;
+                                    maps[activeMap][point + IVec2(x, y)] = cast(short) (activeTileTargetId + x + y * tileSetColCount);
+                                }
                             }
                         }
                     }
@@ -109,7 +118,9 @@ bool update(float dt) {
         }
         drawRect(Rect(atlas.size).addAll(2), gray);
         drawTexture(atlas, Vec2());
-        drawRect(activeTileArea, yellow.alpha(120));
+        if (activeTileTargetPoint != IVec2(-1)) {
+            drawRect(activeTileArea, yellow.alpha(120));
+        }
     }
     canvas.a.detach();
 
@@ -125,14 +136,18 @@ bool update(float dt) {
                 auto point = canvas.b.mouse.grid;
                 auto hasPoint = maps[activeMap].has(point);
                 if (hasPoint) {
-                    auto tile = Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, 0);
-                    auto activeTileSize = abs(activeTileGroupPoint - activeTilePoint);
-                    auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
-                    foreach (y; 0 .. activeTileSize.y + 1) {
-                        foreach (x; 0 .. activeTileSize.x + 1) {
-                            tile.id = activeTileTargetId + x + y * tileSetColCount;
-                            tile.position = (point + IVec2(x, y)).toVec() * maps[activeMap].tileSize;
-                            drawTile(atlas, tile, DrawOptions(gray3));
+                    if (activeTileTargetPoint != IVec2(-1)) {
+                        auto tile = Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, 0);
+                        auto activeTileSize = abs(activeTileGroupPoint - activeTilePoint);
+                        auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
+                        foreach (y; 0 .. activeTileSize.y + 1) {
+                            foreach (x; 0 .. activeTileSize.x + 1) {
+                                auto index = point + IVec2(x, y);
+                                if (!maps[activeMap].has(index)) continue;
+                                tile.id = activeTileTargetId + x + y * tileSetColCount;
+                                tile.position = (index).toVec() * maps[activeMap].tileSize;
+                                drawTile(atlas, tile, DrawOptions(gray3));
+                            }
                         }
                     }
                 }

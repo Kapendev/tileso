@@ -8,14 +8,13 @@ TextureId atlas;
 TileMap[4] maps;
 short activeMap;
 
-IVec2 activeTilePoint;
+IVec2 lastPlacedPoint = IVec2(-1);
+IVec2 activeTilePoint = IVec2(-1);
+IVec2 activeTileGroupPoint = IVec2(-1);
 IVec2 activeTileOffset;
-IVec2 activeTileGroupPoint;
-IVec2 lastPlacedPoint;
 
 short[128 * 128] copyPasteBuffer;
-Sz copyPasteBufferRowCount = 0;
-Sz copyPasteBufferColCount = 0;
+IVec2 copyPasteBufferSize;
 
 struct ViewportMouse {
     Vec2 world;
