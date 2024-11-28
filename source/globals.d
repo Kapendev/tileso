@@ -8,13 +8,14 @@ TextureId atlas;
 TileMap[4] maps;
 short activeMap;
 
-IVec2 lastPlacedPoint = IVec2(-1);
-IVec2 activeTilePoint = IVec2(-1);
-IVec2 activeTileGroupPoint = IVec2(-1);
+IVec2 activeTileStartPoint = IVec2(-1);
+IVec2 activeTileEndPoint = IVec2(-1);
 IVec2 activeTileOffset;
 
-short[128 * 128] copyPasteBuffer;
-IVec2 copyPasteBufferSize;
+IVec2 copyPasteStartPoint = IVec2(-1);
+IVec2 copyPasteEndPoint = IVec2(-1);
+
+IVec2 lastPlacedPoint = IVec2(-1);
 
 struct ViewportMouse {
     Vec2 world;
@@ -92,6 +93,14 @@ struct Canvas {
         return mouse.x >= a.width + handleWidth;
     }
 
+    bool hasGridPointInA(IVec2 point) {
+        return point.x >= 0 && point.x < tileSetColCount && point.y >= 0 && point.y < tileSetRowCount;
+    }
+
+    bool hasGridPointInB(IVec2 point) {
+        return maps[activeMap].has(point);
+    }
+
     void resizeA(int width) {
         a.resize(width, windowHeight);
         b.resize(windowWidth - width - handleWidth, windowHeight);
@@ -146,4 +155,53 @@ struct Canvas {
             drawRect(handle.subAll(3), black.alpha(200));
         }
     }
+}
+
+void resetActiveTileState() {
+    activeTileStartPoint = IVec2(-1);
+    activeTileEndPoint = IVec2(-1);
+    activeTileOffset = IVec2(0);
+}
+
+void resetCopyPasteState() {
+    copyPasteStartPoint = IVec2(-1);
+    copyPasteEndPoint = IVec2(-1);
+}
+
+bool hasValidActiveTileState() {
+    return activeTileStartPoint != IVec2(-1);
+}
+
+bool hasValidCopyPasteState() {
+    return copyPasteStartPoint != IVec2(-1);
+}
+
+bool canUseActiveTileOffset() {
+    return hasValidActiveTileState && activeTileStartPoint == activeTileEndPoint;
+}
+
+bool canCopyTileFromTileSet() {
+    return hasValidCopyPasteState && copyPasteStartPoint == copyPasteEndPoint && maps[activeMap][copyPasteStartPoint] != -1;
+}
+
+IVec2 activeTileTargetPoint() {
+    if (!hasValidActiveTileState) return IVec2(-1);
+
+    auto result = IVec2();
+    if (canUseActiveTileOffset) {
+        result = activeTileStartPoint + activeTileOffset;
+    }  else {
+        result = activeTileStartPoint;
+        if (result.x > activeTileEndPoint.x) result.x = activeTileEndPoint.x;
+        if (result.y > activeTileEndPoint.y) result.y = activeTileEndPoint.y;
+    }
+    return result;
+}
+
+int tileSetRowCount() {
+    return atlas.width / maps[activeMap].tileWidth;
+}
+
+int tileSetColCount() {
+    return atlas.height / maps[activeMap].tileHeight;
 }
