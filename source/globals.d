@@ -6,16 +6,17 @@ import source.config;
 Canvas canvas;
 TextureId atlas;
 TileMap[4] maps;
-short activeMap;
 
+short activeMap;
 IVec2 activeTileStartPoint = IVec2(-1);
 IVec2 activeTileEndPoint = IVec2(-1);
-IVec2 activeTileOffset;
-
+IVec2 activeTileOffset = IVec2(0);
 IVec2 copyPasteStartPoint = IVec2(-1);
 IVec2 copyPasteEndPoint = IVec2(-1);
-
 IVec2 lastPlacedPoint = IVec2(-1);
+
+short[TileMap.maxCapacity] copyPasteBuffer;
+IVec2 copyPasteBufferSize;
 
 struct ViewportMouse {
     Vec2 world;
@@ -101,6 +102,12 @@ struct Canvas {
         return maps[activeMap].has(point);
     }
 
+    int currentViewport() {
+        if (isUserInA) return 0;
+        if (isUserInB) return 1;
+        return -1;
+    }
+
     void resizeA(int width) {
         a.resize(width, windowHeight);
         b.resize(windowWidth - width - handleWidth, windowHeight);
@@ -172,16 +179,8 @@ bool hasValidActiveTileState() {
     return activeTileStartPoint != IVec2(-1);
 }
 
-bool hasValidCopyPasteState() {
-    return copyPasteStartPoint != IVec2(-1);
-}
-
 bool canUseActiveTileOffset() {
     return hasValidActiveTileState && activeTileStartPoint == activeTileEndPoint;
-}
-
-bool canCopyTileFromTileSet() {
-    return hasValidCopyPasteState && copyPasteStartPoint == copyPasteEndPoint && maps[activeMap][copyPasteStartPoint] != -1;
 }
 
 IVec2 activeTileTargetPoint() {
