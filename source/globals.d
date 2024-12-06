@@ -8,15 +8,17 @@ TextureId atlas;
 TileMap[4] maps;
 
 short activeMap;
+
 IVec2 activeTileStartPoint = IVec2(-1);
 IVec2 activeTileEndPoint = IVec2(-1);
-IVec2 activeTileOffset = IVec2(0);
+IVec2 activeTileOffset;
+
 IVec2 copyPasteStartPoint = IVec2(-1);
 IVec2 copyPasteEndPoint = IVec2(-1);
-IVec2 lastPlacedPoint = IVec2(-1);
-
-short[TileMap.maxCapacity] copyPasteBuffer;
 IVec2 copyPasteBufferSize;
+
+IVec2 lastPlacedPoint = IVec2(-1);
+short[TileMap.maxCapacity] copyPasteBuffer;
 
 struct ViewportMouse {
     Vec2 world;
@@ -164,15 +166,45 @@ struct Canvas {
     }
 }
 
-void resetActiveTileState() {
+IVec2 findTopLeftPoint(IVec2 a, IVec2 b) {
+    auto result = a;
+    if (result.x > b.x) result.x = b.x;
+    if (result.y > b.y) result.y = b.y;
+    return result;
+}
+
+void resetActiveTilePoints() {
     activeTileStartPoint = IVec2(-1);
     activeTileEndPoint = IVec2(-1);
-    activeTileOffset = IVec2(0);
+}
+
+void resetActiveTileState() {
+    resetActiveTilePoints();
+    activeTileOffset = IVec2();
+}
+
+void resetCopyPastePoints() {
+    copyPasteStartPoint = IVec2(-1);
+    copyPasteEndPoint = IVec2(-1);
 }
 
 void resetCopyPasteState() {
-    copyPasteStartPoint = IVec2(-1);
-    copyPasteEndPoint = IVec2(-1);
+    resetCopyPastePoints();
+    copyPasteBufferSize = IVec2();
+}
+
+void setActiveTilePoint(IVec2 point) {
+    activeTileStartPoint = point;
+    activeTileEndPoint = point;
+    activeTileOffset = IVec2();
+    resetCopyPasteState();
+}
+
+void setCopyPastePoint(IVec2 point) {
+    copyPasteStartPoint = point;
+    copyPasteEndPoint = point;
+    copyPasteBufferSize = IVec2();
+    resetActiveTileState();
 }
 
 bool hasValidActiveTileState() {
@@ -183,6 +215,21 @@ bool canUseActiveTileOffset() {
     return hasValidActiveTileState && activeTileStartPoint == activeTileEndPoint;
 }
 
+bool canCopyTileFromTileSet() {
+    return copyPasteStartPoint == copyPasteEndPoint && maps[activeMap][copyPasteStartPoint] >= 0;
+}
+
+bool canPlaceTiles() {
+    auto point = canvas.b.mouse.grid;
+    auto areaSize = abs(lastPlacedPoint - point) + IVec2(1);
+    if (hasValidActiveTileState) {
+        auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
+        return lastPlacedPoint == point || areaSize.x > activeTileSize.x || areaSize.y > activeTileSize.y;
+    } else {
+        return lastPlacedPoint == point || areaSize.x > copyPasteBufferSize.x || areaSize.y > copyPasteBufferSize.y;
+    }
+}
+
 IVec2 activeTileTargetPoint() {
     if (!hasValidActiveTileState) return IVec2(-1);
 
@@ -190,9 +237,7 @@ IVec2 activeTileTargetPoint() {
     if (canUseActiveTileOffset) {
         result = activeTileStartPoint + activeTileOffset;
     }  else {
-        result = activeTileStartPoint;
-        if (result.x > activeTileEndPoint.x) result.x = activeTileEndPoint.x;
-        if (result.y > activeTileEndPoint.y) result.y = activeTileEndPoint.y;
+        result = findTopLeftPoint(activeTileStartPoint, activeTileEndPoint);
     }
     return result;
 }
@@ -203,4 +248,83 @@ int tileSetRowCount() {
 
 int tileSetColCount() {
     return atlas.height / maps[activeMap].tileHeight;
+}
+
+void useSelectTool() {
+    auto point = canvas.a.mouse.grid;
+    if (canvas.hasGridPointInA(point)) {
+        if (Mouse.left.isPressed || Mouse.right.isPressed) {
+            setActiveTilePoint(point);
+        } else if (Mouse.left.isDown || Mouse.right.isDown) {
+            activeTileEndPoint = point;
+        }
+    } else {
+        if (Mouse.left.isPressed || Mouse.right.isPressed) {
+            resetActiveTileState();
+        }
+    }
+    resetCopyPastePoints();
+}
+
+void usePencilTool() {
+    auto point = canvas.b.mouse.grid;
+    if (canvas.hasGridPointInB(point)) {
+        if (Mouse.right.isPressed) {
+            setCopyPastePoint(point);
+        } else if (Mouse.right.isDown) {
+            copyPasteEndPoint = point;
+        } else if (Mouse.right.isReleased) {
+            if (canCopyTileFromTileSet) {
+                auto id = maps[activeMap][point];
+                setActiveTilePoint(IVec2(id % tileSetColCount, id / tileSetColCount));
+            } else {
+                copyPasteBufferSize = abs(copyPasteEndPoint - copyPasteStartPoint) + IVec2(1);
+                auto isNegativeBuffer = true;
+                auto topLeftPoint = findTopLeftPoint(copyPasteStartPoint, copyPasteEndPoint);
+                foreach (y; 0 .. copyPasteBufferSize.y) {
+                    foreach (x; 0 .. copyPasteBufferSize.x) {
+                        auto id = maps[activeMap][topLeftPoint + IVec2(x, y)];
+                        if (id >= 0) isNegativeBuffer = false;
+                        copyPasteBuffer[x + y * copyPasteBufferSize.x] = id;
+                    }
+                }
+                resetCopyPastePoints();
+                if (isNegativeBuffer) copyPasteBufferSize = IVec2();
+            }
+        }
+
+        if (hasValidActiveTileState) {
+            auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
+            auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
+            if (Mouse.left.isPressed) {
+                lastPlacedPoint = point;
+            }
+            if (Mouse.left.isDown && canPlaceTiles) {
+                lastPlacedPoint = point;
+                foreach (y; 0 .. activeTileSize.y) {
+                    foreach (x; 0 .. activeTileSize.x) {
+                        auto index = point + IVec2(x, y);
+                        if (!maps[activeMap].has(index)) continue;
+                        maps[activeMap][index] = cast(short) (activeTileTargetId + x + y * tileSetColCount);
+                    }
+                }
+            }
+        } else {
+            auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
+            if (Mouse.left.isPressed) {
+                lastPlacedPoint = point;
+            }
+            if (Mouse.left.isDown && canPlaceTiles) {
+                lastPlacedPoint = point;
+                foreach (y; 0 .. copyPasteBufferSize.y) {
+                    foreach (x; 0 .. copyPasteBufferSize.x) {
+                        auto index = point + IVec2(x, y);
+                        if (!maps[activeMap].has(index)) continue;
+                        if (copyPasteBuffer[x + y * copyPasteBufferSize.x] < 0) continue;
+                        maps[activeMap][index] = copyPasteBuffer[x + y * copyPasteBufferSize.x];
+                    }
+                }
+            }
+        }
+    }
 }
