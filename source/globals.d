@@ -1,13 +1,14 @@
 module source.globals;
 
 import parin;
-import source.config;
 
+Font font;
 Canvas canvas;
 TextureId atlas;
-TileMap[4] maps;
+TileMap[8] maps;
 
-short activeMap;
+int activeMap;
+MapSize commonMapSize;
 
 IVec2 activeTileStartPoint = IVec2(-1);
 IVec2 activeTileEndPoint = IVec2(-1);
@@ -19,6 +20,21 @@ IVec2 copyPasteBufferSize;
 
 IVec2 lastPlacedPoint = IVec2(-1);
 short[TileMap.maxCapacity] copyPasteBuffer;
+
+int[5] baseMapSizes = [16, 32, 64, 128, 256];
+
+enum slowdown = 0.08f;
+enum defaultMoveSpeed = 500;
+enum defaultZoomSpeed = 15;
+enum defaultHandleWidth = 16;
+
+enum MapSize {
+    tiny,
+    small,
+    medium,
+    large,
+    huge,
+}
 
 struct ViewportMouse {
     Vec2 world;
@@ -127,7 +143,7 @@ struct Canvas {
         a.camera.isCentered = true;
         b.color = gray;
         b.camera.isCentered = true;
-        resizeA(256);
+        resizeA(300);
     }
 
     void update(float dt) {
@@ -261,6 +277,7 @@ void useSelectTool() {
     } else {
         if (Mouse.left.isPressed || Mouse.right.isPressed) {
             resetActiveTileState();
+            resetCopyPasteState();
         }
     }
     resetCopyPastePoints();

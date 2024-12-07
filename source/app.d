@@ -4,26 +4,102 @@ import parin;
 import source.globals;
 
 // TODO: Just clean things. I was testing stuff and things are a bit chaotic.
-// TODO: Fix bug where drawing from the copy-paste buffer does not stop when the mouse is in A.
 
 void ready() {
+    canvas.ready();
     foreach (ref map; maps) {
         map = TileMap(16, 16);
+        map.softMaxRowCount = baseMapSizes[commonMapSize];
+        map.softMaxColCount = baseMapSizes[commonMapSize];
     }
-    atlas = loadTexture("atlas.png");
-    canvas.ready();
+    font = loadRawFont("dmsans_regular.ttf", 32, 0, 33).getOr();
+    font.setFilter(Filter.linear);
+    if (font.isEmpty) {
+        font = engineFont;
+        println("No font found! Using the default engine font instead.");
+    }
+    setCanUseAssetsPath(false);
 }
 
 bool update(float dt) {
+    if (Keyboard.esc.isPressed) return true;
+    if (Keyboard.f11.isPressed) toggleIsFullscreen();
+
+    if (droppedFilePaths.length != 0) {
+        auto mapCount = 0;
+        foreach (path; droppedFilePaths) {
+            if (path.endsWith("png")) {
+                atlas.free();
+                atlas = loadTexture(droppedFilePaths[0]);
+                canvas.a.camera.position = Vec2();
+                canvas.a.camera.targetPosition = Vec2();
+            }
+            if (atlas.value && (path.endsWith("csv") || path.endsWith("txt"))) {
+                if (activeMap + mapCount >= maps.length) continue;
+                auto map = &maps[activeMap + mapCount];
+                map.parse(loadTempText(path).getOr(), 16, 16);
+                foreach (size; baseMapSizes) {
+                    if (size > map.softMaxRowCount && size > map.softMaxColCount) {
+                        foreach (ref mapMap; maps) {
+                            mapMap.softMaxRowCount = size;
+                            mapMap.softMaxColCount = size;
+                        }
+                        break;
+                    }
+                }
+                mapCount += 1;
+            }
+        }
+    }
+
+    canvas.update(dt);
     if (!atlas.isValid) {
-        drawDebugText("Add a \"atlas.png\" file inside the assets folder.", Vec2(8));
+        drawText(font, "Drag and drop an atlas texture.", (windowSize * Vec2(0.5f)).round(), DrawOptions(Hook.center));
         return false;
     }
 
     // Check basic keys.
-    if (Keyboard.esc.isPressed) return true;
-    if (Keyboard.f11.isPressed) toggleIsFullscreen();
-    if (Keyboard.n0.isPressed) maps[activeMap].fill(-1);
+    if ('0'.isPressed) {
+        if (Keyboard.alt.isDown) {
+            foreach (ref map; maps) {
+                map.fill(-1);
+            }
+        } else {
+            maps[activeMap].fill(-1);
+        }
+    }
+    if ('q'.isPressed) {
+        auto newActiveMap = wrap(activeMap - 1, 0, cast(int) maps.length);
+        if (Keyboard.alt.isDown) {
+            auto temp = maps[newActiveMap];
+            maps[newActiveMap] = maps[activeMap];
+            maps[activeMap] = temp;
+        }
+        activeMap = newActiveMap;
+    }
+    if ('e'.isPressed) {
+        auto newActiveMap = wrap(activeMap + 1, 0, cast(int) maps.length);
+        if (Keyboard.alt.isDown) {
+            auto temp = maps[newActiveMap];
+            maps[newActiveMap] = maps[activeMap];
+            maps[activeMap] = temp;
+        }
+        activeMap = newActiveMap;
+    }
+    if ('m'.isPressed) {
+        commonMapSize = cast(MapSize) clamp(commonMapSize - 1, 0, MapSize.max);
+        foreach (ref map; maps) {
+            map.softMaxRowCount = baseMapSizes[commonMapSize];
+            map.softMaxColCount = baseMapSizes[commonMapSize];
+        }
+    }
+    if ('p'.isPressed) {
+        commonMapSize = cast(MapSize) clamp(commonMapSize + 1, 0, MapSize.max);
+        foreach (ref map; maps) {
+            map.softMaxRowCount = baseMapSizes[commonMapSize];
+            map.softMaxColCount = baseMapSizes[commonMapSize];
+        }
+    }
     if (canUseActiveTileOffset) {
         foreach (i, digit; digitChars[1 .. $]) {
             if (digit.isPressed) activeTileOffset.x = cast(int) i;
@@ -33,7 +109,6 @@ bool update(float dt) {
     }
 
     // Update the canvas.
-    canvas.update(dt);
     if (!canvas.isHandleActive) {
         if (canvas.isUserInA) {
             useSelectTool();
@@ -76,8 +151,8 @@ bool update(float dt) {
     canvas.b.attach();
     {
         drawRect(Rect(maps[activeMap].size), black.alpha(30));
-        foreach (map; maps) {
-            drawTileMap(atlas, map, canvas.b.camera);
+        foreach (i, map; maps) {
+            drawTileMap(atlas, map, canvas.b.camera, DrawOptions(i == activeMap ? white : gray3));
         }
         if (copyPasteStartPoint != IVec2(-1)) {
             auto size = abs(copyPasteEndPoint - copyPasteStartPoint);
@@ -92,7 +167,7 @@ bool update(float dt) {
                 area.position.y -= size.y * maps[activeMap].tileHeight;
             }
             drawRect(area, yellow.alpha(120));
-        } else if (copyPasteBufferSize != IVec2()) {
+        } else if (copyPasteBufferSize != IVec2() && canvas.isUserInB) {
             auto point = canvas.b.mouse.grid;
             auto tile = Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, 0);
             foreach (y; 0 .. copyPasteBufferSize.y) {
@@ -130,17 +205,7 @@ bool update(float dt) {
 
     // Draw inside window.
     canvas.draw();
-    { // The 3x3 helper.
-        drawRect(Rect(mouse + Vec2(50 - 2, 25 - 2), Vec2(16 * 3 + 2 * 2 + 4)), gray3);
-        foreach (y; 0 .. 3) {
-            foreach (x; 0 .. 3) {
-                auto rect = Rect(x * 18, y * 18, 16, 16);
-                rect.position += mouse + Vec2(50, 25);
-                auto color = ((activeTileOffset.y % 3) == y && (activeTileOffset.x % 3) == x) ? gray4 : black.alpha(200);
-                drawRect(rect, color);
-            }
-        }
-    }
+    drawText(font, "{}".format(activeMap + 1), Vec2(canvas.b.position.x + canvas.b.width * 0.5f, 28).round(), DrawOptions(Hook.center));
     return false;
 }
 
