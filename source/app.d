@@ -18,19 +18,49 @@ void ready() {
         font = engineFont;
         println("No font found! Using the default engine font instead.");
     }
+    uiButtonOptions.font = font;
     setCanUseAssetsPath(false);
+    setIsUiActOnPress(true);
+
+    if (envArgs.length) {
+        auto mapCount = 0;
+        foreach (path; envArgs) {
+            if (path.endsWith("png")) {
+                atlas.free();
+                atlas = loadTexture(path);
+                canvas.a.camera.position = Vec2();
+                canvas.a.camera.targetPosition = Vec2();
+            }
+            if (atlas.value && (path.endsWith("csv") || path.endsWith("txt"))) {
+                if (activeMap + mapCount >= maps.length) continue;
+                auto map = &maps[activeMap + mapCount];
+                map.parse(loadTempText(path).getOr(), 16, 16);
+                foreach (size; baseMapSizes) {
+                    if (size > map.softMaxRowCount && size > map.softMaxColCount) {
+                        foreach (ref mapMap; maps) {
+                            mapMap.softMaxRowCount = size;
+                            mapMap.softMaxColCount = size;
+                        }
+                        break;
+                    }
+                }
+                mapCount += 1;
+            }
+        }
+    }
 }
 
 bool update(float dt) {
     if (Keyboard.esc.isPressed) return true;
     if (Keyboard.f11.isPressed) toggleIsFullscreen();
+    setUiFocus(0);
 
-    if (droppedFilePaths.length != 0) {
+    if (droppedFilePaths.length) {
         auto mapCount = 0;
         foreach (path; droppedFilePaths) {
             if (path.endsWith("png")) {
                 atlas.free();
-                atlas = loadTexture(droppedFilePaths[0]);
+                atlas = loadTexture(path);
                 canvas.a.camera.position = Vec2();
                 canvas.a.camera.targetPosition = Vec2();
             }
@@ -52,11 +82,11 @@ bool update(float dt) {
         }
     }
 
-    canvas.update(dt);
     if (!atlas.isValid) {
         drawText(font, "Drag and drop an atlas texture.", (windowSize * Vec2(0.5f)).round(), DrawOptions(Hook.center));
         return false;
     }
+    canvas.update(dt);
 
     // Check basic keys.
     if ('0'.isPressed) {
@@ -109,11 +139,19 @@ bool update(float dt) {
     }
 
     // Update the canvas.
-    if (!canvas.isHandleActive) {
+    if (activeTool == Tool.eraser) {
+        resetActiveTileState();
+        resetCopyPasteState();
+    }
+    if (!isUiDragged) {
         if (canvas.isUserInA) {
-            useSelectTool();
+            if (Mouse.left.isPressed && activeTool == Tool.eraser) activeTool = Tool.pencil;
+            if (activeTool != Tool.eraser) useSelectTool();
         } else if (canvas.isUserInB) {
-            usePencilTool();
+            final switch (activeTool) {
+                case Tool.pencil: usePencilTool(); break;
+                case Tool.eraser: useEraserTool(); break;
+            }
         }
     }
 
@@ -176,7 +214,7 @@ bool update(float dt) {
                     if (!maps[activeMap].has(index)) continue;
                     tile.id = copyPasteBuffer[x + y * copyPasteBufferSize.x];
                     tile.position = (index).toVec() * maps[activeMap].tileSize;
-                    drawTile(atlas, tile, DrawOptions(gray3));
+                    drawTile(atlas, tile, DrawOptions(gray4));
                 }
             }
         }
@@ -187,14 +225,13 @@ bool update(float dt) {
                 if (copyPasteStartPoint == IVec2(-1) && activeTileTargetPoint != IVec2(-1)) {
                     auto tile = Tile(maps[activeMap].tileWidth, maps[activeMap].tileHeight, 0);
                     auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
-                    auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
                     foreach (y; 0 .. activeTileSize.y) {
                         foreach (x; 0 .. activeTileSize.x) {
                             auto index = point + IVec2(x, y);
                             if (!maps[activeMap].has(index)) continue;
                             tile.id = cast(short) (activeTileTargetId + x + y * tileSetColCount);
                             tile.position = (index).toVec() * maps[activeMap].tileSize;
-                            drawTile(atlas, tile, DrawOptions(gray3));
+                            drawTile(atlas, tile, DrawOptions(gray4));
                         }
                     }
                 }
@@ -205,7 +242,23 @@ bool update(float dt) {
 
     // Draw inside window.
     canvas.draw();
-    drawText(font, "{}".format(activeMap + 1), Vec2(canvas.b.position.x + canvas.b.width * 0.5f, 28).round(), DrawOptions(Hook.center));
+    if (hasValidActiveTileState){
+        auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
+        if (activeTileSize == IVec2(1)) {
+            drawText(font, "{}: {}".format(activeTileTargetPoint, activeTileTargetId), Vec2(12));
+        } else {
+            drawText(font, "{}: {}\n{}".format(activeTileTargetPoint, activeTileTargetId, activeTileSize), Vec2(12));
+        }
+    }
+    setUiMargin(6);
+    drawText(font, "Layer: {}\nTool: {}".format(activeMap + 1, activeTool), Vec2(canvas.b.position.x + 100 + 40, uiMargin));
+    setUiStartPoint(Vec2(canvas.b.position.x + uiMargin, uiMargin));
+    if (uiButton(Vec2(100, 32), "Pencil", uiButtonOptions)) {
+        activeTool = Tool.pencil;
+    }
+    if (uiButton(Vec2(100, 32), "Eraser", uiButtonOptions)) {
+        activeTool = Tool.eraser;
+    }
     return false;
 }
 

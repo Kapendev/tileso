@@ -21,12 +21,20 @@ IVec2 copyPasteBufferSize;
 IVec2 lastPlacedPoint = IVec2(-1);
 short[TileMap.maxCapacity] copyPasteBuffer;
 
+Tool activeTool;
+UiButtonOptions uiButtonOptions;
+
 int[5] baseMapSizes = [16, 32, 64, 128, 256];
 
 enum slowdown = 0.08f;
 enum defaultMoveSpeed = 500;
 enum defaultZoomSpeed = 15;
 enum defaultHandleWidth = 16;
+
+enum Tool {
+    pencil,
+    eraser,
+}
 
 enum MapSize {
     tiny,
@@ -97,12 +105,6 @@ struct Canvas {
     ViewportObject a;
     ViewportObject b;
     int handleWidth = defaultHandleWidth;
-    float handleOffset = 0.0f;
-    bool isHandleActive;
-
-    Rect handle() {
-        return Rect(a.width, 0, handleWidth, windowHeight);
-    }
 
     bool isUserInA() {
         return mouse.x < a.width;
@@ -152,33 +154,17 @@ struct Canvas {
         b.camera.update(dt, isUserInB);
         // Resize the viewports when the window is resized.
         if (isWindowResized) resizeA(a.width);
-        // Check if the handle is pressed and move it. This will also resize the viewports.
-        auto collisionHandle = handle;
-        collisionHandle.position.x -= 1;
-        collisionHandle.size.x += 1;
-        if (Mouse.left.isPressed && collisionHandle.hasPoint(mouse)) {
-            isHandleActive = true;
-            handleOffset = handle.position.x - mouse.x;
-        }
-        if (isHandleActive) {
-            if (Mouse.left.isReleased) {
-                isHandleActive = false;
-            } else if (deltaMouse.x != 0.0f) {
-                resizeA(clamp(cast(int) (mouse.x + handleOffset), 0, windowWidth - handleWidth));
-            }
+        // Resize the viewports when the handle is used.
+        if (a.width) setUiStartPoint(Vec2(a.width, 0.0f));
+        else setUiStartPoint(Vec2(-1.0f, 0.0f));
+        if (uiDragBox(Vec2(handleWidth, windowHeight))) {
+            resizeA(clamp(cast(int) (uiMouse.x + uiDragOffset.x), 0, windowWidth - handleWidth));
         }
     }
 
     void draw() {
         a.draw();
         b.draw();
-        if (isHandleActive) {
-            drawRect(handle, gray4);
-            drawRect(handle.subAll(3), black.alpha(200));
-        } else {
-            drawRect(handle, gray3);
-            drawRect(handle.subAll(3), black.alpha(200));
-        }
     }
 }
 
@@ -258,6 +244,11 @@ IVec2 activeTileTargetPoint() {
     return result;
 }
 
+short activeTileTargetId() {
+    auto temp = activeTileTargetPoint;
+    return cast(short) (temp.x + temp.y * tileSetColCount);
+}
+
 int tileSetRowCount() {
     return atlas.width / maps[activeMap].tileWidth;
 }
@@ -312,7 +303,6 @@ void usePencilTool() {
 
         if (hasValidActiveTileState) {
             auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
-            auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
             if (Mouse.left.isPressed) {
                 lastPlacedPoint = point;
             }
@@ -327,7 +317,6 @@ void usePencilTool() {
                 }
             }
         } else {
-            auto activeTileTargetId = activeTileTargetPoint.x + activeTileTargetPoint.y * tileSetColCount;
             if (Mouse.left.isPressed) {
                 lastPlacedPoint = point;
             }
@@ -342,6 +331,15 @@ void usePencilTool() {
                     }
                 }
             }
+        }
+    }
+}
+
+void useEraserTool() {
+    auto point = canvas.b.mouse.grid;
+    if (canvas.hasGridPointInB(point)) {
+        if (Mouse.left.isDown) {
+            maps[activeMap][point] = -1;
         }
     }
 }
