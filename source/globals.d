@@ -155,10 +155,9 @@ struct Canvas {
         // Resize the viewports when the window is resized.
         if (isWindowResized) resizeA(a.width);
         // Resize the viewports when the handle is used.
-        if (a.width) setUiStartPoint(Vec2(a.width, 0.0f));
-        else setUiStartPoint(Vec2(-1.0f, 0.0f));
-        if (uiDragBox(Vec2(handleWidth, windowHeight))) {
-            resizeA(clamp(cast(int) (uiMouse.x + uiDragOffset.x), 0, windowWidth - handleWidth));
+        auto point = Vec2(a.width, 0.0f);
+        if (uiDragHandle(Vec2(handleWidth, windowHeight), point, UiButtonOptions(UiDragLimit.viewport))) {
+            resizeA(cast(int) point.x);
         }
     }
 

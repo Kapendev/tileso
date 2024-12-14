@@ -20,7 +20,6 @@ void ready() {
     }
     uiButtonOptions.font = font;
     setCanUseAssetsPath(false);
-    setIsUiActOnPress(true);
 
     if (envArgs.length) {
         auto mapCount = 0;
