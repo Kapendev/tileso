@@ -29,7 +29,7 @@ int[5] baseMapSizes = [16, 32, 64, 128, 256];
 enum slowdown = 0.08f;
 enum defaultMoveSpeed = 500;
 enum defaultZoomSpeed = 15;
-enum defaultHandleWidth = 16;
+enum defaultHandleWidth = 20;
 
 enum Tool {
     pencil,
@@ -78,6 +78,10 @@ struct ViewportObject {
     Vec2 position;
 
     alias data this;
+
+    Rect area() {
+        return Rect(position, size);
+    }
 
     ViewportMouse mouse() {
         auto result = ViewportMouse();
@@ -153,12 +157,20 @@ struct Canvas {
         a.camera.update(dt, isUserInA);
         b.camera.update(dt, isUserInB);
         // Resize the viewports when the window is resized.
-        if (isWindowResized) resizeA(a.width);
+        if (isWindowResized) {
+            if (windowWidth < a.width + handleWidth) resizeA(windowWidth - handleWidth);
+            else resizeA(a.width);
+        }
         // Resize the viewports when the handle is used.
         auto point = Vec2(a.width, 0.0f);
         if (uiDragHandle(Vec2(handleWidth, windowHeight), point, UiButtonOptions(UiDragLimit.viewport))) {
             resizeA(cast(int) point.x);
         }
+        auto rect = Rect(point, Vec2(handleWidth, windowHeight));
+        drawRect(rect.subLeft(4), uiButtonOptions.disabledColor);
+        drawRect(rect.subRight(4), uiButtonOptions.disabledColor);
+        drawRect(rect.subTop(4), uiButtonOptions.disabledColor);
+        drawRect(rect.subBottom(4), uiButtonOptions.disabledColor);
     }
 
     void draw() {
@@ -166,6 +178,10 @@ struct Canvas {
         b.draw();
     }
 }
+
+// TODO: Check addRight function in Rect type. Or maybe not. I think I was stupid.
+// TODO: Also, adding in place is kinda bad maybe.
+// TODO: Also add in place add/sub functions because it is super shit that I need to make a temp rect sometimes.
 
 IVec2 findTopLeftPoint(IVec2 a, IVec2 b) {
     auto result = a;

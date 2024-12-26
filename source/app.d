@@ -19,6 +19,11 @@ void ready() {
         println("No font found! Using the default engine font instead.");
     }
     uiButtonOptions.font = font;
+    uiButtonOptions.disabledColor.a = 255;
+    uiButtonOptions.idleColor.a = 255;
+    uiButtonOptions.hotColor.a = 255;
+    uiButtonOptions.activeColor.a = 255;
+    setIsUiActOnPress(true);
     setCanUseAssetsPath(false);
 
     if (envArgs.length) {
@@ -50,9 +55,10 @@ void ready() {
 }
 
 bool update(float dt) {
+    prepareUi();
+    setUiFocus(0);
     if (Keyboard.esc.isPressed) return true;
     if (Keyboard.f11.isPressed) toggleIsFullscreen();
-    setUiFocus(0);
 
     if (droppedFilePaths.length) {
         auto mapCount = 0;
@@ -95,38 +101,6 @@ bool update(float dt) {
             }
         } else {
             maps[activeMap].fill(-1);
-        }
-    }
-    if ('q'.isPressed) {
-        auto newActiveMap = wrap(activeMap - 1, 0, cast(int) maps.length);
-        if (Keyboard.alt.isDown) {
-            auto temp = maps[newActiveMap];
-            maps[newActiveMap] = maps[activeMap];
-            maps[activeMap] = temp;
-        }
-        activeMap = newActiveMap;
-    }
-    if ('e'.isPressed) {
-        auto newActiveMap = wrap(activeMap + 1, 0, cast(int) maps.length);
-        if (Keyboard.alt.isDown) {
-            auto temp = maps[newActiveMap];
-            maps[newActiveMap] = maps[activeMap];
-            maps[activeMap] = temp;
-        }
-        activeMap = newActiveMap;
-    }
-    if ('m'.isPressed) {
-        commonMapSize = cast(MapSize) clamp(commonMapSize - 1, 0, MapSize.max);
-        foreach (ref map; maps) {
-            map.softMaxRowCount = baseMapSizes[commonMapSize];
-            map.softMaxColCount = baseMapSizes[commonMapSize];
-        }
-    }
-    if ('p'.isPressed) {
-        commonMapSize = cast(MapSize) clamp(commonMapSize + 1, 0, MapSize.max);
-        foreach (ref map; maps) {
-            map.softMaxRowCount = baseMapSizes[commonMapSize];
-            map.softMaxColCount = baseMapSizes[commonMapSize];
         }
     }
     if (canUseActiveTileOffset) {
@@ -241,26 +215,57 @@ bool update(float dt) {
 
     // Draw inside window.
     canvas.draw();
-    if (hasValidActiveTileState){
-        auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
-        if (activeTileSize == IVec2(1)) {
-            drawText(font, "{}: {}".format(activeTileTargetPoint, activeTileTargetId), Vec2(12));
-        } else {
-            drawText(font, "{}: {}\n{}".format(activeTileTargetPoint, activeTileTargetId, activeTileSize), Vec2(12));
+    static hh = 0.0f;
+    auto buttonSize = Vec2(120, 40);
+
+    setUiMargin(4);
+    setUiStartPoint(canvas.b.area.topLeftPoint + Vec2(uiMargin * 2));
+    drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), uiButtonOptions.disabledColor);
+
+    useUiLayout(Layout.h);
+    if (uiButton(buttonSize, activeTool.toStr(), uiButtonOptions)) {
+        activeTool = cast(Tool) wrap(activeTool + 1, 0, Tool.max + 1);
+    }
+    useUiLayout(Layout.h);
+    if (uiButton(buttonSize, commonMapSize.toStr(), uiButtonOptions)) {
+        commonMapSize = cast(MapSize) wrap(commonMapSize + 1, 0, commonMapSize.max + 1);
+        foreach (ref map; maps) {
+            map.softMaxRowCount = baseMapSizes[commonMapSize];
+            map.softMaxColCount = baseMapSizes[commonMapSize];
         }
     }
-    setUiMargin(6);
-    drawText(font, "Layer: {}\nTool: {}".format(activeMap + 1, activeTool), Vec2(canvas.b.position.x + 100 + 40, uiMargin));
-    setUiStartPoint(Vec2(canvas.b.position.x + uiMargin, uiMargin));
-    if (uiButton(Vec2(100, 32), "Pencil", uiButtonOptions)) {
-        activeTool = Tool.pencil;
+    auto layerButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
+    foreach (i; 0 .. maps.length) {
+        if (i % 4 == 0) useUiLayout(Layout.h);
+        if (uiButton(layerButtonSize, (i + 1).toStr(), uiButtonOptions)) {
+            activeMap = cast(int) i;
+        }
     }
-    if (uiButton(Vec2(100, 32), "Eraser", uiButtonOptions)) {
-        activeTool = Tool.eraser;
+    useUiLayout(Layout.h);
+    hh = uiLayoutPoint.y - uiStartPoint.y - uiMargin;
+
+    setUiStartPoint(canvas.a.area.topLeftPoint + Vec2(uiMargin));
+    useUiLayout(Layout.v);
+    if (hasValidActiveTileState && canvas.b.position.x - canvas.handleWidth > 170.0f) {
+        auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
+        uiInfoText("{}: {}".format(activeTileTargetPoint, activeTileTargetId));
+        if (activeTileSize != IVec2(1)) uiInfoText("{}".format(activeTileSize));
     }
     return false;
 }
 
 void finish() { }
+
+void uiInfoText(IStr text) {
+    auto options = uiButtonOptions;
+    options.alignment = Alignment.left;
+    options.alignmentOffset = 6;
+
+    auto size = measureTextSize(options.font, text) + Vec2(12.0f, uiMargin);
+
+    updateUiText(size, text, uiButtonOptions);
+    drawRect(Rect(uiItemPoint, uiItemSize), black);
+    drawUiText(size, text, uiItemPoint, options);
+}
 
 mixin runGame!(ready, update, finish);
