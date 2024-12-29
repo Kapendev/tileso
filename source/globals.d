@@ -5,10 +5,11 @@ import parin;
 Font font;
 Canvas canvas;
 TextureId atlas;
-TileMap[8] maps;
+TileMap[4] maps;
 
 int activeMap;
 MapSize commonMapSize;
+TileSize commonTileSize = TileSize.x16;
 
 IVec2 activeTileStartPoint = IVec2(-1);
 IVec2 activeTileEndPoint = IVec2(-1);
@@ -32,8 +33,10 @@ enum defaultZoomSpeed = 15;
 enum defaultHandleWidth = 20;
 
 enum Tool {
-    pencil,
+    brush,
     eraser,
+    rectangle,
+    mix,
 }
 
 enum MapSize {
@@ -42,6 +45,16 @@ enum MapSize {
     medium,
     large,
     huge,
+}
+
+enum TileSize {
+    x4,
+    x8,
+    x16,
+    x24,
+    x32,
+    x48,
+    x64,
 }
 
 struct ViewportMouse {
@@ -91,11 +104,13 @@ struct ViewportObject {
     }
 
     void attach() {
+        if (data.isEmpty) return;
         data.attach();
         camera.attach();
     }
 
     void detach() {
+        if (data.isEmpty) return;
         camera.detach();
         data.detach();
     }
@@ -147,6 +162,7 @@ struct Canvas {
     void ready() {
         a.color = black;
         a.camera.isCentered = true;
+        a.color = uiButtonOptions.disabledColor;
         b.color = gray;
         b.camera.isCentered = true;
         resizeA(300);
@@ -154,14 +170,16 @@ struct Canvas {
 
     void update(float dt) {
         // Update the cameras.
-        a.camera.update(dt, isUserInA);
-        b.camera.update(dt, isUserInB);
+        a.camera.update(dt, isUserInA && !Keyboard.space.isDown);
+        b.camera.update(dt, isUserInB && !Keyboard.space.isDown);
         // Resize the viewports when the window is resized.
         if (isWindowResized) {
             if (windowWidth < a.width + handleWidth) resizeA(windowWidth - handleWidth);
             else resizeA(a.width);
         }
         // Resize the viewports when the handle is used.
+        // NOTE: The handle stops to render when the left camera is really zoomed???
+        // NOTE: Only for the left viewport?
         auto point = Vec2(a.width, 0.0f);
         if (uiDragHandle(Vec2(handleWidth, windowHeight), point, UiButtonOptions(UiDragLimit.viewport))) {
             resizeA(cast(int) point.x);
@@ -245,6 +263,10 @@ bool canPlaceTiles() {
     } else {
         return lastPlacedPoint == point || areaSize.x > copyPasteBufferSize.x || areaSize.y > copyPasteBufferSize.y;
     }
+}
+
+IVec2 activeTileSize() {
+    return abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
 }
 
 IVec2 activeTileTargetPoint() {

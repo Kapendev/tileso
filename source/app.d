@@ -4,11 +4,24 @@ import parin;
 import source.globals;
 
 // TODO: Just clean things. I was testing stuff and things are a bit chaotic.
+// TODO: Need to work on tools.
+// TODO: Need to add way to save.
+// TODO: Need to add ctrl-z and ctrl-y.
+// NOTE: Maybe start/end points can be viewport related and not tool related.
 
 void ready() {
+    uiButtonOptions.disabledColor.a = 255;
+    uiButtonOptions.idleColor.a = 255;
+    uiButtonOptions.hotColor.a = 255;
+    uiButtonOptions.activeColor.a = 255;
+
     canvas.ready();
+
+    // TODO: Lol, don't do it like that dude.
+    auto tempTileSizeValue = cast(int) (commonTileSize.toStr()[1 .. $].toUnsigned().get());
+
     foreach (ref map; maps) {
-        map = TileMap(16, 16);
+        map = TileMap(tempTileSizeValue, tempTileSizeValue);
         map.softMaxRowCount = baseMapSizes[commonMapSize];
         map.softMaxColCount = baseMapSizes[commonMapSize];
     }
@@ -19,10 +32,6 @@ void ready() {
         println("No font found! Using the default engine font instead.");
     }
     uiButtonOptions.font = font;
-    uiButtonOptions.disabledColor.a = 255;
-    uiButtonOptions.idleColor.a = 255;
-    uiButtonOptions.hotColor.a = 255;
-    uiButtonOptions.activeColor.a = 255;
     setIsUiActOnPress(true);
     setCanUseAssetsPath(false);
 
@@ -32,13 +41,13 @@ void ready() {
             if (path.endsWith("png")) {
                 atlas.free();
                 atlas = loadTexture(path);
-                canvas.a.camera.position = Vec2();
-                canvas.a.camera.targetPosition = Vec2();
+                canvas.a.camera.position = atlas.size * Vec2(0.5f);
+                canvas.a.camera.targetPosition = atlas.size * Vec2(0.5f);
             }
             if (atlas.value && (path.endsWith("csv") || path.endsWith("txt"))) {
                 if (activeMap + mapCount >= maps.length) continue;
                 auto map = &maps[activeMap + mapCount];
-                map.parse(loadTempText(path).getOr(), 16, 16);
+                map.parse(loadTempText(path).getOr(), hasValidActiveTileState, hasValidActiveTileState);
                 foreach (size; baseMapSizes) {
                     if (size > map.softMaxRowCount && size > map.softMaxColCount) {
                         foreach (ref mapMap; maps) {
@@ -52,6 +61,9 @@ void ready() {
             }
         }
     }
+
+    canvas.a.camera.position = atlas.size * Vec2(0.5f);
+    canvas.a.camera.targetPosition = atlas.size * Vec2(0.5f);
 }
 
 bool update(float dt) {
@@ -66,8 +78,8 @@ bool update(float dt) {
             if (path.endsWith("png")) {
                 atlas.free();
                 atlas = loadTexture(path);
-                canvas.a.camera.position = Vec2();
-                canvas.a.camera.targetPosition = Vec2();
+                canvas.a.camera.position = atlas.size * Vec2(0.5f);
+                canvas.a.camera.targetPosition = atlas.size * Vec2(0.5f);
             }
             if (atlas.value && (path.endsWith("csv") || path.endsWith("txt"))) {
                 if (activeMap + mapCount >= maps.length) continue;
@@ -95,7 +107,7 @@ bool update(float dt) {
 
     // Check basic keys.
     if ('0'.isPressed) {
-        if (Keyboard.alt.isDown) {
+        if (Keyboard.space.isDown) {
             foreach (ref map; maps) {
                 map.fill(-1);
             }
@@ -104,26 +116,36 @@ bool update(float dt) {
         }
     }
     if (canUseActiveTileOffset) {
-        foreach (i, digit; digitChars[1 .. $]) {
-            if (digit.isPressed) activeTileOffset.x = cast(int) i;
+        if (Keyboard.space.isDown) {
+            foreach (i, c; "qwe") {
+                if (c.isPressed) activeTileOffset.x = cast(int) i;
+            }
+            if ('r'.isPressed) activeTileOffset.y = wrap(activeTileOffset.y + 1, 0, 3);
+        } else {
+            activeTileOffset = IVec2();
         }
-        if ('x'.isPressed) activeTileOffset.y = wrap(activeTileOffset.y - 1, 0, 3);
-        if ('c'.isPressed) activeTileOffset.y = wrap(activeTileOffset.y + 1, 0, 3);
     }
 
     // Update the canvas.
-    if (activeTool == Tool.eraser) {
+    if (activeTool != Tool.brush) {
         resetActiveTileState();
         resetCopyPasteState();
     }
     if (!isUiDragged) {
         if (canvas.isUserInA) {
-            if (Mouse.left.isPressed && activeTool == Tool.eraser) activeTool = Tool.pencil;
-            if (activeTool != Tool.eraser) useSelectTool();
+            if (Mouse.left.isPressed && activeTool == Tool.eraser) activeTool = Tool.brush;
+            final switch (activeTool) {
+                case Tool.brush: useSelectTool(); break;
+                case Tool.rectangle: break;
+                case Tool.eraser: break;
+                case Tool.mix: break;
+            }
         } else if (canvas.isUserInB) {
             final switch (activeTool) {
-                case Tool.pencil: usePencilTool(); break;
+                case Tool.brush: usePencilTool(); break;
+                case Tool.rectangle: break;
                 case Tool.eraser: useEraserTool(); break;
+                case Tool.mix: break;
             }
         }
     }
@@ -131,7 +153,7 @@ bool update(float dt) {
     // NOTE: Stopped here when I was refactoring stuff.
     // Draw inside viewport A.
     canvas.a.attach();
-    {
+    if (!canvas.a.isEmpty) {
         auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
         auto activeTileArea = Rect(
             activeTileStartPoint.toVec() * maps[activeMap].tileSize,
@@ -147,7 +169,7 @@ bool update(float dt) {
         if (activeTileEndPoint.y - activeTileStartPoint.y < 0) {
             activeTileArea.position.y -= (activeTileSize.y - 1) * maps[activeMap].tileHeight;
         }
-        drawRect(Rect(atlas.size).addAll(2), gray);
+        drawRect(Rect(atlas.size).addAll(2), uiButtonOptions.idleColor);
         drawTexture(atlas, Vec2());
         if (activeTileTargetPoint != IVec2(-1)) {
             drawRect(activeTileArea, yellow.alpha(120));
@@ -160,8 +182,8 @@ bool update(float dt) {
 
     // Draw inside viewport B.
     canvas.b.attach();
-    {
-        drawRect(Rect(maps[activeMap].size), black.alpha(30));
+    if (!canvas.b.isEmpty) {
+        drawRect(Rect(maps[activeMap].size), white.alpha(60));
         foreach (i, map; maps) {
             drawTileMap(atlas, map, canvas.b.camera, DrawOptions(i == activeMap ? white : gray3));
         }
@@ -219,13 +241,10 @@ bool update(float dt) {
     auto buttonSize = Vec2(120, 40);
 
     setUiMargin(4);
-    setUiStartPoint(canvas.b.area.topLeftPoint + Vec2(uiMargin * 2));
+    auto toolButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
+    setUiStartPoint(canvas.b.area.topLeftPoint + Vec2(0.0f, uiMargin));
     drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), uiButtonOptions.disabledColor);
 
-    useUiLayout(Layout.h);
-    if (uiButton(buttonSize, activeTool.toStr(), uiButtonOptions)) {
-        activeTool = cast(Tool) wrap(activeTool + 1, 0, Tool.max + 1);
-    }
     useUiLayout(Layout.h);
     if (uiButton(buttonSize, commonMapSize.toStr(), uiButtonOptions)) {
         commonMapSize = cast(MapSize) wrap(commonMapSize + 1, 0, commonMapSize.max + 1);
@@ -234,38 +253,58 @@ bool update(float dt) {
             map.softMaxColCount = baseMapSizes[commonMapSize];
         }
     }
+    useUiLayout(Layout.h);
+    if (uiButton(buttonSize, commonTileSize.toStr(), uiButtonOptions)) {
+        resetActiveTileState();
+        commonTileSize = cast(TileSize) wrap(commonTileSize + 1, 0, commonTileSize.max + 1);
+        foreach (ref map; maps) {
+            // TODO: Lol, don't do it like that dude.
+            auto temp = cast(int) (commonTileSize.toStr()[1 .. $].toUnsigned().get());
+            map.tileWidth = temp;
+            map.tileHeight = temp;
+        }
+    }
+    useUiLayout(Layout.h);
+    foreach (i, c; "BERM") {
+        auto tempOptions = uiButtonOptions;
+        if (activeTool == i) tempOptions.idleColor = tempOptions.hotColor;
+        if (uiButton(toolButtonSize, c.toStr(), tempOptions) || (c.isPressed && !Keyboard.space.isDown)) {
+            activeTool = cast(Tool) i;
+        }
+    }
     auto layerButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
-    foreach (i; 0 .. maps.length) {
-        if (i % 4 == 0) useUiLayout(Layout.h);
-        if (uiButton(layerButtonSize, (i + 1).toStr(), uiButtonOptions)) {
+    useUiLayout(Layout.h);
+    foreach (i, c; "1234") {
+        auto tempOptions = uiButtonOptions;
+        if (activeMap == i) tempOptions.idleColor = tempOptions.hotColor;
+        if (uiButton(layerButtonSize, c.toStr(), tempOptions) || c.isPressed) {
             activeMap = cast(int) i;
         }
     }
     useUiLayout(Layout.h);
     hh = uiLayoutPoint.y - uiStartPoint.y - uiMargin;
 
-    setUiStartPoint(canvas.a.area.topLeftPoint + Vec2(uiMargin));
-    useUiLayout(Layout.v);
-    if (hasValidActiveTileState && canvas.b.position.x - canvas.handleWidth > 170.0f) {
-        auto activeTileSize = abs(activeTileEndPoint - activeTileStartPoint) + IVec2(1);
-        uiInfoText("{}: {}".format(activeTileTargetPoint, activeTileTargetId));
-        if (activeTileSize != IVec2(1)) uiInfoText("{}".format(activeTileSize));
+    static lastInfoTextRect = Rect();
+    setUiStartPoint(Vec2(uiMargin, uiMargin));
+    if (hasValidActiveTileState && lastInfoTextRect.topRightPoint.x < canvas.b.position.x - canvas.handleWidth) {
+        uiInfoText("[{}] {} | {}".format(activeTileTargetId, activeTileTargetPoint, activeTileSize));
+        lastInfoTextRect = Rect(uiItemPoint, uiItemSize);
     }
+    drawHollowRect(Rect(canvas.a.size + Vec2(4.0f, 0.0f)), 4, uiButtonOptions.disabledColor);
     return false;
 }
 
 void finish() { }
 
 void uiInfoText(IStr text) {
-    auto options = uiButtonOptions;
-    options.alignment = Alignment.left;
-    options.alignmentOffset = 6;
-
-    auto size = measureTextSize(options.font, text) + Vec2(12.0f, uiMargin);
-
-    updateUiText(size, text, uiButtonOptions);
-    drawRect(Rect(uiItemPoint, uiItemSize), black);
-    drawUiText(size, text, uiItemPoint, options);
+    auto temp = uiButtonOptions;
+    temp.alignment = Alignment.left;
+    temp.alignmentOffset = 4;
+    auto textSize = measureTextSize(font, text) + Vec2(temp.alignmentOffset * 3, 0.0f);
+    auto finalSize = Vec2(textSize.x, 40.0f);
+    updateUiText(finalSize, text, temp);
+    drawRect(Rect(uiItemPoint, uiItemSize), uiButtonOptions.disabledColor);
+    drawUiText(uiItemSize, text, uiItemPoint, temp);
 }
 
 mixin runGame!(ready, update, finish);
