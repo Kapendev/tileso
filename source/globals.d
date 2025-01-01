@@ -2,7 +2,7 @@ module source.globals;
 
 import parin;
 
-Font font;
+FontId font;
 Canvas canvas;
 TextureId atlas;
 TileMap[4] maps;
@@ -23,7 +23,7 @@ IVec2 lastPlacedPoint = IVec2(-1);
 short[TileMap.maxCapacity] copyPasteBuffer;
 
 Tool activeTool;
-UiButtonOptions uiButtonOptions;
+UiOptions uiButtonOptions;
 
 int[5] baseMapSizes = [16, 32, 64, 128, 256];
 
@@ -162,7 +162,7 @@ struct Canvas {
     void ready() {
         a.color = black;
         a.camera.isCentered = true;
-        a.color = uiButtonOptions.disabledColor;
+        a.color = defaultUiDisabledColor.alpha(255);
         b.color = gray;
         b.camera.isCentered = true;
         resizeA(300);
@@ -181,14 +181,14 @@ struct Canvas {
         // NOTE: The handle stops to render when the left camera is really zoomed???
         // NOTE: Only for the left viewport?
         auto point = Vec2(a.width, 0.0f);
-        if (uiDragHandle(Vec2(handleWidth, windowHeight), point, UiButtonOptions(UiDragLimit.viewport))) {
+        if (uiDragHandle(Vec2(handleWidth, windowHeight), point, UiOptions(UiDragLimit.viewport))) {
             resizeA(cast(int) point.x);
         }
         auto rect = Rect(point, Vec2(handleWidth, windowHeight));
-        drawRect(rect.subLeft(4), uiButtonOptions.disabledColor);
-        drawRect(rect.subRight(4), uiButtonOptions.disabledColor);
-        drawRect(rect.subTop(4), uiButtonOptions.disabledColor);
-        drawRect(rect.subBottom(4), uiButtonOptions.disabledColor);
+        drawRect(rect.subLeft(4), defaultUiDisabledColor);
+        drawRect(rect.subRight(4), defaultUiDisabledColor);
+        drawRect(rect.subTop(4), defaultUiDisabledColor);
+        drawRect(rect.subBottom(4), defaultUiDisabledColor);
     }
 
     void draw() {
@@ -196,10 +196,6 @@ struct Canvas {
         b.draw();
     }
 }
-
-// TODO: Check addRight function in Rect type. Or maybe not. I think I was stupid.
-// TODO: Also, adding in place is kinda bad maybe.
-// TODO: Also add in place add/sub functions because it is super shit that I need to make a temp rect sometimes.
 
 IVec2 findTopLeftPoint(IVec2 a, IVec2 b) {
     auto result = a;

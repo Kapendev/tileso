@@ -7,14 +7,16 @@ import source.globals;
 // TODO: Need to work on tools.
 // TODO: Need to add way to save.
 // TODO: Need to add ctrl-z and ctrl-y.
+// TODO: Add none button for gamepad.
 // NOTE: Maybe start/end points can be viewport related and not tool related.
 
 void ready() {
-    uiButtonOptions.disabledColor.a = 255;
-    uiButtonOptions.idleColor.a = 255;
-    uiButtonOptions.hotColor.a = 255;
-    uiButtonOptions.activeColor.a = 255;
+//    defaultUiDisabledColor.a = 255;
+//    defaultUiIdleColor.a = 255;
+//    defaultUiHotColor.a = 255;
+//    defaultUiActiveColor.a = 255;
 
+    setUiClickAction(Keyboard.none);
     canvas.ready();
 
     // TODO: Lol, don't do it like that dude.
@@ -25,12 +27,8 @@ void ready() {
         map.softMaxRowCount = baseMapSizes[commonMapSize];
         map.softMaxColCount = baseMapSizes[commonMapSize];
     }
-    font = loadRawFont("dmsans_regular.ttf", 32, 0, 33).getOr();
-    font.setFilter(Filter.linear);
-    if (font.isEmpty) {
-        font = engineFont;
-        println("No font found! Using the default engine font instead.");
-    }
+    font = loadFont("dmsans_regular.ttf", 32, 0, 33);
+    font.get().setFilter(Filter.linear);
     uiButtonOptions.font = font;
     setIsUiActOnPress(true);
     setCanUseAssetsPath(false);
@@ -169,7 +167,7 @@ bool update(float dt) {
         if (activeTileEndPoint.y - activeTileStartPoint.y < 0) {
             activeTileArea.position.y -= (activeTileSize.y - 1) * maps[activeMap].tileHeight;
         }
-        drawRect(Rect(atlas.size).addAll(2), uiButtonOptions.idleColor);
+        drawRect(Rect(atlas.size).addAll(2), defaultUiIdleColor.alpha(255));
         drawTexture(atlas, Vec2());
         if (activeTileTargetPoint != IVec2(-1)) {
             drawRect(activeTileArea, yellow.alpha(120));
@@ -243,7 +241,7 @@ bool update(float dt) {
     setUiMargin(4);
     auto toolButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
     setUiStartPoint(canvas.b.area.topLeftPoint + Vec2(0.0f, uiMargin));
-    drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), uiButtonOptions.disabledColor);
+    drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), defaultUiDisabledColor.alpha(255));
 
     useUiLayout(Layout.h);
     if (uiButton(buttonSize, commonMapSize.toStr(), uiButtonOptions)) {
@@ -266,9 +264,8 @@ bool update(float dt) {
     }
     useUiLayout(Layout.h);
     foreach (i, c; "BERM") {
-        auto tempOptions = uiButtonOptions;
-        if (activeTool == i) tempOptions.idleColor = tempOptions.hotColor;
-        if (uiButton(toolButtonSize, c.toStr(), tempOptions) || (c.isPressed && !Keyboard.space.isDown)) {
+        if (activeTool == i) setUiFocus(cast(short) (uiState.itemId + 1)); // TODO: Make uiItemId function???
+        if (uiButton(toolButtonSize, c.toStr(), uiButtonOptions) || (c.isPressed && !Keyboard.space.isDown)) {
             activeTool = cast(Tool) i;
         }
     }
@@ -276,7 +273,7 @@ bool update(float dt) {
     useUiLayout(Layout.h);
     foreach (i, c; "1234") {
         auto tempOptions = uiButtonOptions;
-        if (activeMap == i) tempOptions.idleColor = tempOptions.hotColor;
+        if (activeMap == i) setUiFocus(cast(short) (uiState.itemId + 1));
         if (uiButton(layerButtonSize, c.toStr(), tempOptions) || c.isPressed) {
             activeMap = cast(int) i;
         }
@@ -290,7 +287,7 @@ bool update(float dt) {
         uiInfoText("[{}] {} | {}".format(activeTileTargetId, activeTileTargetPoint, activeTileSize));
         lastInfoTextRect = Rect(uiItemPoint, uiItemSize);
     }
-    drawHollowRect(Rect(canvas.a.size + Vec2(4.0f, 0.0f)), 4, uiButtonOptions.disabledColor);
+    drawHollowRect(Rect(canvas.a.size + Vec2(4.0f, 0.0f)), 4, defaultUiDisabledColor);
     return false;
 }
 
@@ -303,7 +300,7 @@ void uiInfoText(IStr text) {
     auto textSize = measureTextSize(font, text) + Vec2(temp.alignmentOffset * 3, 0.0f);
     auto finalSize = Vec2(textSize.x, 40.0f);
     updateUiText(finalSize, text, temp);
-    drawRect(Rect(uiItemPoint, uiItemSize), uiButtonOptions.disabledColor);
+    drawRect(Rect(uiItemPoint, uiItemSize), defaultUiDisabledColor);
     drawUiText(uiItemSize, text, uiItemPoint, temp);
 }
 
