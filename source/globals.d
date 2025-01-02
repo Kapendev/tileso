@@ -25,6 +25,9 @@ short[TileMap.maxCapacity] copyPasteBuffer;
 Tool activeTool;
 UiOptions uiButtonOptions;
 
+bool isSaving;
+bool isLoading;
+
 int[5] baseMapSizes = [16, 32, 64, 128, 256];
 
 enum slowdown = 0.08f;
@@ -170,8 +173,8 @@ struct Canvas {
 
     void update(float dt) {
         // Update the cameras.
-        a.camera.update(dt, isUserInA && !Keyboard.space.isDown);
-        b.camera.update(dt, isUserInB && !Keyboard.space.isDown);
+        a.camera.update(dt, isUserInA && !Keyboard.space.isDown && !Keyboard.ctrl.isDown && !isSaving && !isLoading);
+        b.camera.update(dt, isUserInB && !Keyboard.space.isDown && !Keyboard.ctrl.isDown && !isSaving && !isLoading);
         // Resize the viewports when the window is resized.
         if (isWindowResized) {
             if (windowWidth < a.width + handleWidth) resizeA(windowWidth - handleWidth);
@@ -185,10 +188,10 @@ struct Canvas {
             resizeA(cast(int) point.x);
         }
         auto rect = Rect(point, Vec2(handleWidth, windowHeight));
-        drawRect(rect.subLeft(4), defaultUiDisabledColor);
-        drawRect(rect.subRight(4), defaultUiDisabledColor);
-        drawRect(rect.subTop(4), defaultUiDisabledColor);
-        drawRect(rect.subBottom(4), defaultUiDisabledColor);
+        drawRect(rect.subLeft(4), defaultUiDisabledColor.alpha(255));
+        drawRect(rect.subRight(4), defaultUiDisabledColor.alpha(255));
+        drawRect(rect.subTop(4), defaultUiDisabledColor.alpha(255));
+        drawRect(rect.subBottom(4), defaultUiDisabledColor.alpha(255));
     }
 
     void draw() {
@@ -283,11 +286,11 @@ short activeTileTargetId() {
 }
 
 int tileSetRowCount() {
-    return atlas.width / maps[activeMap].tileWidth;
+    return atlas.height / maps[activeMap].tileHeight;
 }
 
 int tileSetColCount() {
-    return atlas.height / maps[activeMap].tileHeight;
+    return atlas.width / maps[activeMap].tileWidth;
 }
 
 void useSelectTool() {

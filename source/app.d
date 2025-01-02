@@ -11,11 +11,6 @@ import source.globals;
 // NOTE: Maybe start/end points can be viewport related and not tool related.
 
 void ready() {
-//    defaultUiDisabledColor.a = 255;
-//    defaultUiIdleColor.a = 255;
-//    defaultUiHotColor.a = 255;
-//    defaultUiActiveColor.a = 255;
-
     setUiClickAction(Keyboard.none);
     canvas.ready();
 
@@ -67,7 +62,6 @@ void ready() {
 bool update(float dt) {
     prepareUi();
     setUiFocus(0);
-    if (Keyboard.esc.isPressed) return true;
     if (Keyboard.f11.isPressed) toggleIsFullscreen();
 
     if (droppedFilePaths.length) {
@@ -83,15 +77,6 @@ bool update(float dt) {
                 if (activeMap + mapCount >= maps.length) continue;
                 auto map = &maps[activeMap + mapCount];
                 map.parse(loadTempText(path).getOr(), 16, 16);
-                foreach (size; baseMapSizes) {
-                    if (size > map.softMaxRowCount && size > map.softMaxColCount) {
-                        foreach (ref mapMap; maps) {
-                            mapMap.softMaxRowCount = size;
-                            mapMap.softMaxColCount = size;
-                        }
-                        break;
-                    }
-                }
                 mapCount += 1;
             }
         }
@@ -241,45 +226,47 @@ bool update(float dt) {
     setUiMargin(4);
     auto toolButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
     setUiStartPoint(canvas.b.area.topLeftPoint + Vec2(0.0f, uiMargin));
-    drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), defaultUiDisabledColor.alpha(255));
 
-    useUiLayout(Layout.h);
-    if (uiButton(buttonSize, commonMapSize.toStr(), uiButtonOptions)) {
-        commonMapSize = cast(MapSize) wrap(commonMapSize + 1, 0, commonMapSize.max + 1);
-        foreach (ref map; maps) {
-            map.softMaxRowCount = baseMapSizes[commonMapSize];
-            map.softMaxColCount = baseMapSizes[commonMapSize];
+    if (!isSaving && !isLoading) {
+        drawRect(Rect(uiStartPoint, buttonSize.x, hh).addAll(uiMargin), defaultUiDisabledColor.alpha(255));
+        useUiLayout(Layout.h);
+        if (uiButton(buttonSize, commonMapSize.toStr(), uiButtonOptions)) {
+            commonMapSize = cast(MapSize) wrap(commonMapSize + 1, 0, commonMapSize.max + 1);
+            foreach (ref map; maps) {
+                map.softMaxRowCount = baseMapSizes[commonMapSize];
+                map.softMaxColCount = baseMapSizes[commonMapSize];
+            }
         }
-    }
-    useUiLayout(Layout.h);
-    if (uiButton(buttonSize, commonTileSize.toStr(), uiButtonOptions)) {
-        resetActiveTileState();
-        commonTileSize = cast(TileSize) wrap(commonTileSize + 1, 0, commonTileSize.max + 1);
-        foreach (ref map; maps) {
-            // TODO: Lol, don't do it like that dude.
-            auto temp = cast(int) (commonTileSize.toStr()[1 .. $].toUnsigned().get());
-            map.tileWidth = temp;
-            map.tileHeight = temp;
+        useUiLayout(Layout.h);
+        if (uiButton(buttonSize, commonTileSize.toStr(), uiButtonOptions)) {
+            resetActiveTileState();
+            commonTileSize = cast(TileSize) wrap(commonTileSize + 1, 0, commonTileSize.max + 1);
+            foreach (ref map; maps) {
+                // TODO: Lol, don't do it like that dude.
+                auto temp = cast(int) (commonTileSize.toStr()[1 .. $].toUnsigned().get());
+                map.tileWidth = temp;
+                map.tileHeight = temp;
+            }
         }
-    }
-    useUiLayout(Layout.h);
-    foreach (i, c; "BERM") {
-        if (activeTool == i) setUiFocus(cast(short) (uiState.itemId + 1)); // TODO: Make uiItemId function???
-        if (uiButton(toolButtonSize, c.toStr(), uiButtonOptions) || (c.isPressed && !Keyboard.space.isDown)) {
-            activeTool = cast(Tool) i;
+        useUiLayout(Layout.h);
+        foreach (i, c; "BERM") {
+            if (activeTool == i) setUiFocus(cast(short) (uiState.itemId + 1)); // TODO: Make uiItemId function???
+            if (uiButton(toolButtonSize, c.toStr(), uiButtonOptions) || (c.isPressed && !Keyboard.space.isDown)) {
+                activeTool = cast(Tool) i;
+            }
         }
-    }
-    auto layerButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
-    useUiLayout(Layout.h);
-    foreach (i, c; "1234") {
-        auto tempOptions = uiButtonOptions;
-        if (activeMap == i) setUiFocus(cast(short) (uiState.itemId + 1));
-        if (uiButton(layerButtonSize, c.toStr(), tempOptions) || c.isPressed) {
-            activeMap = cast(int) i;
+        auto layerButtonSize = Vec2(buttonSize.x * 0.25f - uiMargin * 0.5f * 1.5f, buttonSize.y);
+        useUiLayout(Layout.h);
+        foreach (i, c; "1234") {
+            auto tempOptions = uiButtonOptions;
+            if (activeMap == i) setUiFocus(cast(short) (uiState.itemId + 1));
+            if (uiButton(layerButtonSize, c.toStr(), tempOptions) || c.isPressed) {
+                activeMap = cast(int) i;
+            }
         }
+        useUiLayout(Layout.h);
+        hh = uiLayoutPoint.y - uiStartPoint.y - uiMargin;
     }
-    useUiLayout(Layout.h);
-    hh = uiLayoutPoint.y - uiStartPoint.y - uiMargin;
 
     static lastInfoTextRect = Rect();
     setUiStartPoint(Vec2(uiMargin, uiMargin));
@@ -287,7 +274,62 @@ bool update(float dt) {
         uiInfoText("[{}] {} | {}".format(activeTileTargetId, activeTileTargetPoint, activeTileSize));
         lastInfoTextRect = Rect(uiItemPoint, uiItemSize);
     }
-    drawHollowRect(Rect(canvas.a.size + Vec2(4.0f, 0.0f)), 4, defaultUiDisabledColor);
+    drawHollowRect(Rect(canvas.a.size + Vec2(4.0f, 0.0f)), 4, defaultUiDisabledColor.alpha(255));
+
+    static Str tt;
+    static char[128] bb;
+    if (Keyboard.s.isPressed && Keyboard.ctrl.isDown) {
+        isSaving = true;
+    } else if (Keyboard.r.isPressed && Keyboard.ctrl.isDown) {
+        isLoading = true;
+    }
+    if (isSaving || isLoading) {
+        if (Keyboard.c.isPressed && Keyboard.ctrl.isDown || Keyboard.esc.isPressed) {
+            tt = tt[0 .. 0];
+            isSaving = false;
+            isLoading = false;
+        }
+        setUiClickAction(Keyboard.enter);
+        auto box = Rect(canvas.b.size);
+        box.subLeftRight(windowSize.x * 0.02f);
+        box.position = canvas.b.position + canvas.b.size * Vec2(0.5f);
+        box.size.y = font.size * 3;
+        box = box.area(Hook.center);
+        drawRect(box, defaultUiIdleColor.alpha(255));
+        drawHollowRect(box, uiMargin, defaultUiDisabledColor.alpha(255));
+        if (isSaving) {
+            drawText(font, "Save layer as:", (box.centerPoint + Vec2(0.0f, font.size * -0.6f)).floor(), DrawOptions(Hook.center));
+        } else if (isLoading) {
+            drawText(font, "Load layer from:", (box.centerPoint + Vec2(0.0f, font.size * -0.6f)).floor(), DrawOptions(Hook.center));
+        }
+        static tempCsvBuffer = LStr();
+        setUiStartPoint(box.position + Vec2(0.0f, font.size * 0.5f));
+        if (uiTextField(box.size, tt, bb, uiButtonOptions)) {
+            if (isSaving) {
+                tempCsvBuffer.clear();
+                foreach (row; 0 .. maps[activeMap].rowCount) {
+                    foreach (col; 0 .. maps[activeMap].colCount) {
+                        tempCsvBuffer.append(maps[activeMap][row, col].toStr());
+                        if (col != maps[activeMap].colCount - 1) tempCsvBuffer.append(',');
+                    }
+                    tempCsvBuffer.append('\n');
+                }
+                if (!saveText(tt, tempCsvBuffer.items)) {
+                    isSaving = false;
+                    tt = tt[0 .. 0];
+                }
+            } else if (isLoading) {
+                auto map = &maps[activeMap];
+                auto text = loadTempText(tt).getOr();
+                println(text);
+                if (!map.parse(text, 16, 16)) {
+                    isLoading = false;
+                    tt = tt[0 .. 0];
+                }
+            }
+        }
+        setUiClickAction(Keyboard.none);
+    }
     return false;
 }
 
@@ -300,7 +342,7 @@ void uiInfoText(IStr text) {
     auto textSize = measureTextSize(font, text) + Vec2(temp.alignmentOffset * 3, 0.0f);
     auto finalSize = Vec2(textSize.x, 40.0f);
     updateUiText(finalSize, text, temp);
-    drawRect(Rect(uiItemPoint, uiItemSize), defaultUiDisabledColor);
+    drawRect(Rect(uiItemPoint, uiItemSize), black.alpha(defaultUiAlpha));
     drawUiText(uiItemSize, text, uiItemPoint, temp);
 }
 
